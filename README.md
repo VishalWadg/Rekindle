@@ -59,5 +59,5 @@ npm install
 npm run dev
 ### → running at http://localhost:5173
 ## Architecture
-See [ARCHITECTURE.md](./ARCHITECTURE.md) for the full data model,
+See [docs/architecture.md](docs/architecture.md) for the full data model,
 Thompson Sampling algorithm design, and API contract.
