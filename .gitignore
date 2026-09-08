@@ -1,8 +1,25 @@
+# Python & Backend
 .venv/
 __pycache__/
 *.py[cod]
+
+# Node & Frontend
 node_modules/
 dist/
+dist-ssr/
+dev-dist/
+
+# Environment & Secrets
 .env
+.env*.local
+
+# Testing & Logs
+coverage/
+*.log
+
+# OS & Editors
 .DS_Store
 Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
