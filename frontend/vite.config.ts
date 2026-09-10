@@ -15,8 +15,9 @@ export default defineConfig({
       manifest: {
         name: "Rekindle",
         short_name: "Rekindle",
-        theme_color: "#your-color",
-
+        theme_color: "#FAF7F2",
+        background_color: "#FAF7F2",
+        display: "standalone",
         icons: [
           {
             src: "/icons/icon-192.png",
