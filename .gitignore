@@ -1,7 +1,8 @@
-# Python & Backend
-.venv/
-__pycache__/
-*.py[cod]
+# Java & Maven
+target/
+*.class
+*.jar
+!.mvn/wrapper/maven-wrapper.jar
 
 # Node & Frontend
 node_modules/

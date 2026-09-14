@@ -5,7 +5,7 @@ function App() {
   const [healthStatus , setHealthStatus] = useState("checking...");
 
   useEffect(() => {
-    fetch("http://localhost:8000/health")
+    fetch("http://localhost:8080/health")
       .then((response) => response.json())
       .then((data) => setHealthStatus(data.status))
       .catch((error) => {

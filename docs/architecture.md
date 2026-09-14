@@ -12,21 +12,22 @@ When you have an idle moment, Rekindle quietly surfaces one thought, note, or qu
 
 ## 2. System Overview
 
-Rekindle is built as a **single backend** that can serve any client: a React Progressive Web App (PWA) today, and native mobile apps in the future.
+Rekindle is built as a **single backend** serving a React Progressive Web App (PWA) today, and native mobile clients in the future.
 
 ```mermaid
 graph TD
-    A[React PWA<br/>Web + Mobile Browser] -->|HTTPS / JSON<br/>Auto-generated types| B[FastAPI Backend<br/>Python]
+    A[React PWA<br/>Web + Mobile Browser] -->|HTTPS / JSON<br/>Types generated from OpenAPI| B[Spring Boot Backend<br/>Java 25 / 21]
     RN[React Native<br/>Future Client] -.->|Same API Contract| B
     B --> C[(PostgreSQL<br/>Durable Source of Truth)]
     B --> D[(Redis<br/>Recency Cache)]
 ```
 
 ### Key Components:
-- **FastAPI (Python)**: Handles all business logic, runs the recommendation math, and serves the REST API.
-- **PostgreSQL**: The permanent database where your interests, snippets, and reaction history are stored.
-- **Redis**: An in-memory temporary cache with automatic expiration (TTL). It only answers one question: *"Was this snippet shown in the last 24 hours?"*
-- **React PWA**: A calm, mobile-friendly interface installable directly to your home screen.
+- **Spring Boot (Java)**: Handles business logic, runs the Thompson Sampling bandit math via Apache Commons Math, and exposes the REST API with auto-generated OpenAPI documentation via `springdoc-openapi`.
+- **PostgreSQL**: The permanent relational database storing interests, snippets, and exposure reaction history via Spring Data JPA / Hibernate.
+- **Flyway**: Version-controlled database schema migrations.
+- **Redis**: In-memory recency cache managed via Spring Data Redis (`StringRedisTemplate`). It answers one question: *"Was this snippet shown in the last 24 hours?"*
+- **React PWA**: A calm, mobile-first interface installable directly to the home screen with type-safe clients generated via `openapi-typescript`.
 
 ---
 
@@ -37,7 +38,7 @@ graph TD
 | **Interest** | A topic you care about (e.g., "Databases", "Jazz", "Psychology"). In math terms, this is an "arm" of a multi-armed bandit. |
 | **Snippet** | A short saved note, question, or quote belonging to an interest. |
 | **Exposure** | A record of a snippet being shown to you, along with your reaction. |
-| **alpha (α) & beta (β)** | Two numbers per interest. α counts positive reactions (`keep`, `explore`), and β counts negative reactions (`skip`). |
+| **alpha (α) & beta (β)** | Two integer counters per interest. α counts positive reactions (`keep`, `explore`), and β counts negative reactions (`skip`). |
 
 ---
 
@@ -72,39 +73,53 @@ erDiagram
 
 ---
 
-## 5. How Rekindle Chooses What to Show (Thompson Sampling)
+## 5. Suggestion Engine — Thompson Sampling (Apache Commons Math)
 
-Instead of a complex, hand-tuned formula, Rekindle uses **Thompson Sampling** (a classic Bayesian algorithm) split into two simple steps:
+Rekindle uses **Thompson Sampling** (Beta-Bernoulli bandit) split into two decoupled decisions:
 
 ### Step 1 — Pick the Topic (The Bandit)
-1. For every interest that has at least one snippet, draw a random number from a `Beta(alpha, beta)` probability curve.
-2. The interest that draws the highest random number wins.
-   - **Why this works**: New topics start at `Beta(1, 1)` (wide uncertainty), giving them a fair chance to be explored early. Topics you frequently keep will have higher α and win more often, but less-explored topics still pop up occasionally.
+Draw one random sample from `Beta(alpha, beta)` per interest **that has at least one snippet**. Pick the interest with the highest sample.
+
+```java
+import org.apache.commons.math3.distribution.BetaDistribution;
+
+public UUID pickInterest(List<Interest> eligibleInterests) {
+    Map<UUID, Double> samples = new HashMap<>();
+    for (Interest i : eligibleInterests) {
+        samples.put(i.getId(), new BetaDistribution(i.getAlpha(), i.getBeta()).sample());
+    }
+    return Collections.max(samples.entrySet(), Map.Entry.comparingByValue()).getKey();
+}
+```
+
+- New interests start at `Beta(1, 1)` (flat prior), naturally encouraging early exploration.
+- Confident, well-liked interests usually win; uncertain ones still surface occasionally.
 
 ### Step 2 — Pick the Snippet (Recency Filter)
-1. From the winning interest, look up all snippets.
-2. Filter out any snippets stored in the Redis 24-hour recency cache.
-3. Pick randomly from the remaining snippets.
-4. Save the chosen snippet to Redis with a 24-hour expiration so it cools down.
+1. Query snippets under the winning interest.
+2. Filter out any snippet IDs stored in Redis (set with a 24-hour TTL).
+3. Pick randomly from the remaining candidates.
+4. Record the chosen snippet ID in Redis with a 24-hour expiration.
 
 ### Step 3 — Record Feedback
-When you react, Rekindle updates the topic's counters:
-- **`keep`** or **`explore`** → increase α by 1 (topic liked)
-- **`skip`** → increase β by 1 (topic passed on)
+- **`keep`** or **`explore`** → `alpha += 1`
+- **`skip`** → `beta += 1`
 
 ---
 
-## 6. API Endpoints
+## 6. API Contract
 
-| Method | Path | What It Does |
+| Method | Path | Purpose |
 |---|---|---|
 | `GET` | `/health` | Sanity check returning `{"status": "ok"}` |
-| `POST` | `/api/interests` | Create a new interest topic |
-| `GET` | `/api/interests` | List all interests and their α/β scores |
+| `POST` | `/api/interests` | Create an interest topic |
+| `GET` | `/api/interests` | List interests (+ α/β, snippet count) |
 | `POST` | `/api/interests/{id}/snippets` | Add a snippet under an interest |
-| `GET` | `/api/surface` | Run Thompson Sampling and return one snippet to read |
-| `POST` | `/api/exposures/{id}/feedback` | Send reaction (`skip`, `keep`, `explore`) |
-| `GET` | `/api/snippets?interestId=` | Fetch other snippets under the same topic for "explore more" |
+| `GET` | `/api/surface` | Run Thompson Sampling, return one snippet |
+| `POST` | `/api/exposures/{id}/feedback` | Record `skip`/`keep`/`explore`, update α/β |
+| `GET` | `/api/snippets?interestId=` | List snippets for "explore more" |
+
+`springdoc-openapi` automatically generates the OpenAPI v3 specification at `/v3/api-docs`, allowing the frontend to generate compile-time safe TypeScript types via `openapi-typescript`.
 
 ---
 
@@ -114,17 +129,17 @@ When you react, Rekindle updates the topic's counters:
 ```mermaid
 sequenceDiagram
     participant App as React PWA
-    participant API as FastAPI
+    participant API as Spring Boot
     participant DB as PostgreSQL
     participant Cache as Redis
 
     App->>API: GET /api/surface
-    API->>DB: Fetch interests (alpha, beta)
-    API->>API: Draw Beta samples -> Winning interest chosen
-    API->>Cache: Get snippet IDs shown in last 24h
-    API->>DB: Fetch snippets for topic (excluding recent IDs)
-    API->>DB: Record new Exposure (reaction = none)
-    API->>Cache: Save snippet ID with 24h TTL
+    API->>DB: Find eligible interests (with snippets)
+    API->>API: Sample Beta(alpha, beta) via Commons Math -> Winning interest
+    API->>Cache: Query recently-shown snippet IDs for interest
+    API->>DB: Find candidate snippets excluding recent IDs
+    API->>DB: Insert Exposure record (reaction = none)
+    API->>Cache: Set snippet ID key with 24h TTL
     API-->>App: Return snippet JSON
 ```
 
@@ -132,28 +147,37 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     participant App as React PWA
-    participant API as FastAPI
+    participant API as Spring Boot
     participant DB as PostgreSQL
 
     App->>API: POST /api/exposures/{id}/feedback {reaction}
-    API->>DB: Update Exposure record with reaction
+    API->>DB: Update Exposure.reaction and responded_at
     API->>DB: Increment Interest alpha or beta
     API-->>App: Acknowledge success
 ```
 
 ---
 
-## 8. MVP Scope & Boundaries
+## 8. Suggested Backend Structure
 
-### What is Included:
-- Single-user, zero complicated authentication.
-- Manual entry for interests and snippets.
-- Beta-Bernoulli Thompson Sampling algorithm.
-- 24-hour Redis cooldown for surfaced snippets.
-- Calm, mobile-first PWA interface.
-
-### What is Deferred:
-- Background task queues (Kafka/Celery).
-- Push notifications (violates the calm, no-pressure philosophy).
-- Complex 1–5 star rating scales.
-- Multi-user authentication.
+```text
+backend/
+├── build.gradle
+├── settings.gradle
+├── gradlew / gradlew.bat
+└── src/
+    ├── main/
+    │   ├── java/com/rekindle/
+    │   │   ├── RekindleApplication.java
+    │   │   ├── controller/      # @RestController classes
+    │   │   ├── service/         # SuggestionService, FeedbackService
+    │   │   ├── repository/      # Spring Data JPA interfaces
+    │   │   ├── entity/          # JPA @Entity classes (Interest, Snippet, Exposure)
+    │   │   ├── dto/             # Java Records for requests/responses
+    │   │   └── config/          # CorsConfig, RedisConfig, OpenApiConfig
+    │   └── resources/
+    │       ├── application.yml
+    │       └── db/migration/    # Flyway SQL migrations (V1__init.sql)
+    └── test/
+        └── java/com/rekindle/   # JUnit 5 & Mockito tests
+```
