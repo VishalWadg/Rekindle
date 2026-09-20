@@ -11,4 +11,6 @@ import com.rekindle.entity.Interest;
 public interface InterestRepository extends JpaRepository<Interest, UUID> {
     @Query("SELECT DISTINCT i FROM Interest i JOIN i.snippets s")
     List<Interest> findEligibleInterests();
+
+    boolean existsByNameIgnoreCase(String name);
 }
