@@ -6,7 +6,6 @@ import { SurfaceScreen } from './features/surface/SurfaceScreen';
 import { EmptyStateScreen } from './features/surface/EmptyStateScreen';
 import { ManageInterestsScreen } from './features/interests/ManageInterestsScreen';
 import { ExploreMoreScreen } from './features/explore/ExploreMoreScreen';
-import { PlaygroundScreen } from './features/playground/PlaygroundScreen';
 import { AddSnippetModal } from './features/interests/AddSnippetModal';
 
 export function App() {
@@ -183,9 +182,6 @@ export function App() {
           onDeleteSnippet={handleDeleteSnippet}
         />
       )}
-
-      {/* Playground View */}
-      {activeView === 'playground' && <PlaygroundScreen />}
 
       {/* Add Snippet Modal */}
       <AddSnippetModal

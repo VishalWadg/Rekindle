@@ -18,4 +18,4 @@ export interface Snippet {
   createdAt: string;
 }
 
-export type ActiveView = 'surface' | 'interests' | 'explore' | 'playground';
+export type ActiveView = 'surface' | 'interests' | 'explore';

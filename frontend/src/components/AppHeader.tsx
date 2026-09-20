@@ -1,6 +1,12 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState } from 'react';
 import rekindleLogo from '../assets/RekindleLogo.png';
 import type { ActiveView } from '../types';
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from './ui/dropdown-menu';
 
 interface AppHeaderProps {
   activeView: ActiveView;
@@ -16,32 +22,6 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
   onToggleTheme,
 }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
-
-  // Close menu on click outside or escape key
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-        setIsMobileMenuOpen(false);
-      }
-    };
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        setIsMobileMenuOpen(false);
-      }
-    };
-
-    if (isMobileMenuOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-      document.addEventListener('keydown', handleKeyDown);
-    }
-
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-      document.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [isMobileMenuOpen]);
 
   const handleNavClick = (view: ActiveView) => {
     onNavigate(view);
@@ -62,8 +42,8 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
             alt="Rekindle flame logo"
             className="w-7 h-7 sm:w-8 sm:h-8 object-contain group-hover:scale-105 transition-transform duration-150"
           />
-          <span className="text-[17px] font-medium tracking-tight text-[var(--foreground)] lowercase">
-            rekindle
+          <span className="font-brand text-[clamp(1.125rem,2.5vw,1.35rem)] font-medium tracking-tight text-[var(--foreground)]">
+            Rekindle
           </span>
         </button>
 
@@ -103,7 +83,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
           </button>
         </nav>
 
-        {/* Mobile Hamburger Button (sm:hidden) */}
+        {/* Mobile Navigation with shadcn DropdownMenu (sm:hidden) */}
         <div className="flex sm:hidden items-center gap-1">
           <button
             type="button"
@@ -114,59 +94,58 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
             {isDark ? '☼' : '☽'}
           </button>
 
-          <button
-            type="button"
-            aria-label={isMobileMenuOpen ? 'Close menu' : 'Open menu'}
-            onClick={() => setIsMobileMenuOpen((prev) => !prev)}
-            className="w-9 h-9 rounded-lg flex flex-col items-center justify-center gap-1 text-[var(--foreground)] hover:bg-[var(--card)] transition-colors cursor-pointer"
-          >
-            <span
-              className={`w-4 h-[1.5px] bg-[var(--foreground)] transition-transform duration-200 ${
-                isMobileMenuOpen ? 'rotate-45 translate-y-[2.5px]' : ''
-              }`}
-            />
-            <span
-              className={`w-4 h-[1.5px] bg-[var(--foreground)] transition-transform duration-200 ${
-                isMobileMenuOpen ? '-rotate-45 -translate-y-[3px]' : ''
-              }`}
-            />
-          </button>
+          <DropdownMenu open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                aria-label={isMobileMenuOpen ? 'Close menu' : 'Open menu'}
+                className="w-9 h-9 rounded-lg flex flex-col items-center justify-center gap-1 text-[var(--foreground)] hover:bg-[var(--card)] transition-colors cursor-pointer"
+              >
+                <span
+                  className={`w-4 h-[1.5px] bg-[var(--foreground)] transition-transform duration-200 ${
+                    isMobileMenuOpen ? 'rotate-45 translate-y-[2.5px]' : ''
+                  }`}
+                />
+                <span
+                  className={`w-4 h-[1.5px] bg-[var(--foreground)] transition-transform duration-200 ${
+                    isMobileMenuOpen ? '-rotate-45 -translate-y-[3px]' : ''
+                  }`}
+                />
+              </button>
+            </DropdownMenuTrigger>
+
+            <DropdownMenuContent
+              align="end"
+              sideOffset={8}
+              className="sm:hidden w-48 bg-[var(--card)] border border-[var(--border)] rounded-2xl p-2 shadow-[0_4px_20px_rgba(0,0,0,0.06)] space-y-1 z-50"
+            >
+              <DropdownMenuItem
+                onClick={() => handleNavClick('surface')}
+                className={`w-full px-4 py-3 rounded-xl text-[15px] transition-colors cursor-pointer flex items-center justify-between ${
+                  activeView === 'surface'
+                    ? 'bg-[var(--accent-tint-bg)] text-[var(--accent-tint-fg)] font-medium'
+                    : 'text-[var(--foreground)] hover:bg-[var(--border)]/40 font-normal'
+                }`}
+              >
+                <span>surface</span>
+                {activeView === 'surface' && <span className="text-xs">●</span>}
+              </DropdownMenuItem>
+
+              <DropdownMenuItem
+                onClick={() => handleNavClick('interests')}
+                className={`w-full px-4 py-3 rounded-xl text-[15px] transition-colors cursor-pointer flex items-center justify-between ${
+                  activeView === 'interests'
+                    ? 'bg-[var(--accent-tint-bg)] text-[var(--accent-tint-fg)] font-medium'
+                    : 'text-[var(--foreground)] hover:bg-[var(--border)]/40 font-normal'
+                }`}
+              >
+                <span>interests</span>
+                {activeView === 'interests' && <span className="text-xs">●</span>}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
-
-      {/* Mobile Dropdown Menu (Quiet, themed card) */}
-      {isMobileMenuOpen && (
-        <div
-          ref={menuRef}
-          className="sm:hidden absolute top-[calc(100%-8px)] left-4 right-4 bg-[var(--card)] border border-[var(--border)] rounded-2xl p-4 shadow-[0_4px_20px_rgba(0,0,0,0.06)] animate-in fade-in slide-in-from-top-2 duration-150 space-y-1"
-        >
-          <button
-            type="button"
-            onClick={() => handleNavClick('surface')}
-            className={`w-full text-left px-4 py-3 rounded-xl text-[15px] transition-colors cursor-pointer flex items-center justify-between ${
-              activeView === 'surface'
-                ? 'bg-[var(--accent-tint-bg)] text-[var(--accent-tint-fg)] font-medium'
-                : 'text-[var(--foreground)] hover:bg-[var(--border)]/40 font-normal'
-            }`}
-          >
-            <span>surface</span>
-            {activeView === 'surface' && <span className="text-xs">●</span>}
-          </button>
-
-          <button
-            type="button"
-            onClick={() => handleNavClick('interests')}
-            className={`w-full text-left px-4 py-3 rounded-xl text-[15px] transition-colors cursor-pointer flex items-center justify-between ${
-              activeView === 'interests'
-                ? 'bg-[var(--accent-tint-bg)] text-[var(--accent-tint-fg)] font-medium'
-                : 'text-[var(--foreground)] hover:bg-[var(--border)]/40 font-normal'
-            }`}
-          >
-            <span>interests</span>
-            {activeView === 'interests' && <span className="text-xs">●</span>}
-          </button>
-        </div>
-      )}
     </header>
   );
 };
