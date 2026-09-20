@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { ActiveView, Interest, Snippet } from './types';
-import { INITIAL_INTERESTS, INITIAL_SNIPPETS } from './data/mockData';
+import { api } from './api/client';
 import { AppHeader } from './components/AppHeader';
 import { SurfaceScreen } from './features/surface/SurfaceScreen';
 import { EmptyStateScreen } from './features/surface/EmptyStateScreen';
@@ -9,9 +10,7 @@ import { ExploreMoreScreen } from './features/explore/ExploreMoreScreen';
 import { AddSnippetModal } from './features/interests/AddSnippetModal';
 
 export function App() {
-  const [interests, setInterests] = useState<Interest[]>(INITIAL_INTERESTS);
-  const [snippets, setSnippets] = useState<Snippet[]>(INITIAL_SNIPPETS);
-  const [currentSnippetIndex, setCurrentSnippetIndex] = useState(0);
+  const queryClient = useQueryClient();
 
   const [activeView, setActiveView] = useState<ActiveView>('surface');
   const [selectedInterestForExplore, setSelectedInterestForExplore] = useState<Interest | null>(null);
@@ -32,35 +31,94 @@ export function App() {
 
   const toggleTheme = () => setIsDark((prev) => !prev);
 
-  // Current active snippet
-  const currentSnippet = snippets.length > 0 ? snippets[currentSnippetIndex % snippets.length] : null;
+  // 1. Query all interests from Spring Boot
+  const { data: interests = [] } = useQuery<Interest[]>({
+    queryKey: ['interests'],
+    queryFn: async () => {
+      const { data, error } = await api.GET('/api/interests');
+      if (error) throw error;
+      return (data || []).map((i) => ({
+        id: i.id || '',
+        name: i.name || '',
+        alpha: i.alpha ?? 1,
+        beta: i.beta ?? 1,
+        snippetCount: Number(i.snippetCount || 0),
+        createdAt: i.createdAt || '',
+      }));
+    },
+  });
 
-  const advanceToNextSnippet = () => {
-    if (snippets.length <= 1) return;
-    setCurrentSnippetIndex((prev) => (prev + 1) % snippets.length);
-  };
+  // 2. Query surfaced thought from Thompson Sampling engine
+  const { data: currentSnippet = null } = useQuery<Snippet | null>({
+    queryKey: ['surface'],
+    queryFn: async () => {
+      const { data, response } = await api.GET('/api/surface');
+      if (response.status === 204 || !data || !data.snippetId) return null;
+      const snippet: Snippet = {
+        id: data.snippetId,
+        exposureId: data.exposureId,
+        interestId: data.interestId || '',
+        interestName: data.interestName || '',
+        content: data.content || '',
+        createdAt: data.createdAt || '',
+      };
+      return snippet;
+    },
+  });
 
-  const handleKeep = (snippetId: string) => {
-    const snip = snippets.find((s) => s.id === snippetId);
-    if (snip) {
-      setInterests((prev) =>
-        prev.map((i) => (i.id === snip.interestId ? { ...i, alpha: i.alpha + 1 } : i))
-      );
+  // 3. Query snippets when exploring a specific interest
+  const { data: exploreSnippets = [] } = useQuery<Snippet[]>({
+    queryKey: ['snippets', selectedInterestForExplore?.id],
+    enabled: !!selectedInterestForExplore,
+    queryFn: async () => {
+      if (!selectedInterestForExplore) return [];
+      const { data, error } = await api.GET('/api/interests/{interestId}/snippets', {
+        params: { path: { interestId: selectedInterestForExplore.id } },
+      });
+      if (error) throw error;
+      return (data || []).map((s) => ({
+        id: s.id || '',
+        interestId: s.interestId || '',
+        interestName: s.interestName || '',
+        content: s.content || '',
+        createdAt: s.createdAt || '',
+      }));
+    },
+  });
+
+  // 4. Feedback mutation (Keep / Skip / Explore)
+  const feedbackMutation = useMutation({
+    mutationFn: async ({ exposureId, reaction }: { exposureId: string; reaction: 'keep' | 'skip' | 'explore' }) => {
+      await api.POST('/api/exposures/{id}/feedback', {
+        params: { path: { id: exposureId } },
+        body: { reaction },
+      });
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['surface'] });
+      queryClient.invalidateQueries({ queryKey: ['interests'] });
+    },
+  });
+
+  const handleKeep = (idOrExposureId: string) => {
+    const exposureId = currentSnippet?.exposureId || idOrExposureId;
+    if (exposureId) {
+      feedbackMutation.mutate({ exposureId, reaction: 'keep' });
     }
-    advanceToNextSnippet();
   };
 
-  const handleSkip = (snippetId: string) => {
-    const snip = snippets.find((s) => s.id === snippetId);
-    if (snip) {
-      setInterests((prev) =>
-        prev.map((i) => (i.id === snip.interestId ? { ...i, beta: i.beta + 1 } : i))
-      );
+  const handleSkip = (idOrExposureId: string) => {
+    const exposureId = currentSnippet?.exposureId || idOrExposureId;
+    if (exposureId) {
+      feedbackMutation.mutate({ exposureId, reaction: 'skip' });
     }
-    advanceToNextSnippet();
   };
 
-  const handleExploreMore = (interestId: string) => {
+  const handleExploreMore = (interestId: string, exposureId?: string) => {
+    const targetExposureId = exposureId || currentSnippet?.exposureId;
+    if (targetExposureId) {
+      feedbackMutation.mutate({ exposureId: targetExposureId, reaction: 'explore' });
+    }
     const target = interests.find((i) => i.id === interestId);
     if (target) {
       setSelectedInterestForExplore(target);
@@ -68,68 +126,87 @@ export function App() {
     }
   };
 
-  // Interest management
-  const handleAddInterest = (name: string) => {
-    const newInterest: Interest = {
-      id: `int-${Date.now()}`,
-      name: name.toLowerCase(),
-      alpha: 1,
-      beta: 1,
-      snippetCount: 0,
-      createdAt: new Date().toISOString(),
-    };
-    setInterests((prev) => [...prev, newInterest]);
-  };
+  // 5. Interest mutations
+  const createInterestMutation = useMutation({
+    mutationFn: async (name: string) => {
+      const { data, error } = await api.POST('/api/interests', {
+        body: { name },
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['interests'] });
+      queryClient.invalidateQueries({ queryKey: ['surface'] });
+    },
+  });
 
-  const handleDeleteInterest = (interestId: string) => {
-    setInterests((prev) => prev.filter((i) => i.id !== interestId));
-    setSnippets((prev) => prev.filter((s) => s.interestId !== interestId));
-    if (selectedInterestForExplore?.id === interestId) {
-      setSelectedInterestForExplore(null);
-      setActiveView('surface');
-    }
-  };
+  const deleteInterestMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await api.DELETE('/api/interests/{id}', {
+        params: { path: { id } },
+      });
+      if (error) throw error;
+    },
+    onSuccess: (_, deletedId) => {
+      queryClient.invalidateQueries({ queryKey: ['interests'] });
+      queryClient.invalidateQueries({ queryKey: ['surface'] });
+      if (selectedInterestForExplore?.id === deletedId) {
+        setSelectedInterestForExplore(null);
+        setActiveView('surface');
+      }
+    },
+  });
 
-  // Snippet management
-  const handleSaveSnippet = (interestId: string, content: string) => {
-    const targetInterest = interests.find((i) => i.id === interestId);
-    if (!targetInterest) return;
+  // 6. Snippet mutations
+  const createSnippetMutation = useMutation({
+    mutationFn: async ({ interestId, content }: { interestId: string; content: string }) => {
+      const { data, error } = await api.POST('/api/interests/{interestId}/snippets', {
+        params: { path: { interestId } },
+        body: { content },
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['snippets', variables.interestId] });
+      queryClient.invalidateQueries({ queryKey: ['interests'] });
+      queryClient.invalidateQueries({ queryKey: ['surface'] });
+    },
+  });
 
-    const newSnippet: Snippet = {
-      id: `snip-${Date.now()}`,
-      interestId,
-      interestName: targetInterest.name,
-      content,
-      savedAt: 'saved just now',
-      createdAt: new Date().toISOString(),
-    };
+  const updateSnippetMutation = useMutation({
+    mutationFn: async ({ snippetId, content }: { snippetId: string; content: string }) => {
+      const { data, error } = await api.PUT('/api/snippets/{id}', {
+        params: { path: { id: snippetId } },
+        body: { content },
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      if (selectedInterestForExplore) {
+        queryClient.invalidateQueries({ queryKey: ['snippets', selectedInterestForExplore.id] });
+      }
+      queryClient.invalidateQueries({ queryKey: ['surface'] });
+    },
+  });
 
-    setSnippets((prev) => [newSnippet, ...prev]);
-    setInterests((prev) =>
-      prev.map((i) => (i.id === interestId ? { ...i, snippetCount: i.snippetCount + 1 } : i))
-    );
-  };
-
-  const handleEditSnippet = (snippetId: string, newContent: string) => {
-    setSnippets((prev) =>
-      prev.map((s) => (s.id === snippetId ? { ...s, content: newContent } : s))
-    );
-  };
-
-  const handleDeleteSnippet = (snippetId: string) => {
-    const snip = snippets.find((s) => s.id === snippetId);
-    if (!snip) return;
-    setSnippets((prev) => prev.filter((s) => s.id !== snippetId));
-    setInterests((prev) =>
-      prev.map((i) =>
-        i.id === snip.interestId ? { ...i, snippetCount: Math.max(0, i.snippetCount - 1) } : i
-      )
-    );
-  };
-
-  const snippetsForExplore = selectedInterestForExplore
-    ? snippets.filter((s) => s.interestId === selectedInterestForExplore.id)
-    : [];
+  const deleteSnippetMutation = useMutation({
+    mutationFn: async (snippetId: string) => {
+      const { error } = await api.DELETE('/api/snippets/{id}', {
+        params: { path: { id: snippetId } },
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      if (selectedInterestForExplore) {
+        queryClient.invalidateQueries({ queryKey: ['snippets', selectedInterestForExplore.id] });
+      }
+      queryClient.invalidateQueries({ queryKey: ['interests'] });
+      queryClient.invalidateQueries({ queryKey: ['surface'] });
+    },
+  });
 
   return (
     <div className="min-h-screen flex flex-col bg-[var(--background)] text-[var(--foreground)] transition-colors duration-200">
@@ -160,8 +237,8 @@ export function App() {
       {activeView === 'interests' && (
         <ManageInterestsScreen
           interests={interests}
-          onAddInterest={handleAddInterest}
-          onDeleteInterest={handleDeleteInterest}
+          onAddInterest={(name) => createInterestMutation.mutate(name)}
+          onDeleteInterest={(id) => deleteInterestMutation.mutate(id)}
           onSelectInterest={(interest) => {
             setSelectedInterestForExplore(interest);
             setActiveView('explore');
@@ -175,11 +252,11 @@ export function App() {
       {activeView === 'explore' && selectedInterestForExplore && (
         <ExploreMoreScreen
           interest={selectedInterestForExplore}
-          snippets={snippetsForExplore}
+          snippets={exploreSnippets}
           onBack={() => setActiveView('surface')}
           onOpenAddSnippet={(interest) => setModalTargetInterest(interest)}
-          onEditSnippet={handleEditSnippet}
-          onDeleteSnippet={handleDeleteSnippet}
+          onEditSnippet={(snippetId, content) => updateSnippetMutation.mutate({ snippetId, content })}
+          onDeleteSnippet={(snippetId) => deleteSnippetMutation.mutate(snippetId)}
         />
       )}
 
@@ -187,7 +264,7 @@ export function App() {
       <AddSnippetModal
         interest={modalTargetInterest}
         onClose={() => setModalTargetInterest(null)}
-        onSave={handleSaveSnippet}
+        onSave={(interestId, content) => createSnippetMutation.mutate({ interestId, content })}
       />
     </div>
   );

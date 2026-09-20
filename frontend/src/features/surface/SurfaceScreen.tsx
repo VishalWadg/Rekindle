@@ -5,9 +5,9 @@ import { ActionButton } from '../../components/ActionButton';
 
 interface SurfaceScreenProps {
   snippet: Snippet | null;
-  onKeep: (snippetId: string) => void;
-  onSkip: (snippetId: string) => void;
-  onExploreMore: (interestId: string) => void;
+  onKeep: (id: string) => void;
+  onSkip: (id: string) => void;
+  onExploreMore: (interestId: string, exposureId?: string) => void;
   onAddFirstInterest: () => void;
 }
 
@@ -24,8 +24,8 @@ export const SurfaceScreen: React.FC<SurfaceScreenProps> = ({
     if (!snippet || isTransitioning) return;
     setIsTransitioning(true);
     setTimeout(() => {
-      if (action === 'keep') onKeep(snippet.id);
-      else onSkip(snippet.id);
+      if (action === 'keep') onKeep(snippet.exposureId || snippet.id);
+      else onSkip(snippet.exposureId || snippet.id);
       setIsTransitioning(false);
     }, 220);
   };
@@ -102,7 +102,7 @@ export const SurfaceScreen: React.FC<SurfaceScreenProps> = ({
           <ActionButton
             variant="explore"
             disabled={isTransitioning}
-            onClick={() => onExploreMore(snippet.interestId)}
+            onClick={() => onExploreMore(snippet.interestId, snippet.exposureId)}
           />
         </footer>
       </div>

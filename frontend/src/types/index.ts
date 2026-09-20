@@ -11,10 +11,11 @@ export interface Interest {
 
 export interface Snippet {
   id: string;
+  exposureId?: string;
   interestId: string;
   interestName: string;
   content: string;
-  savedAt: string; // human-readable, e.g. "3 months ago"
+  savedAt?: string;
   createdAt: string;
 }
 
