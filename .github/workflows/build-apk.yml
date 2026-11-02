@@ -33,6 +33,15 @@ jobs:
           flutter --version
           dart --version
 
+      - name: Verify or Install Android NDK
+        run: |
+          if [ -d "$ANDROID_HOME/ndk/27.0.12077973" ]; then
+            echo "NDK 27.0.12077973 is pre-installed."
+          else
+            echo "Installing NDK 27.0.12077973 via sdkmanager..."
+            yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --install "ndk;27.0.12077973"
+          fi
+
       - name: Test rekindle_core package
         run: |
           cd packages/rekindle_core
@@ -53,6 +62,8 @@ jobs:
           dart run tool/check_offline.dart
 
       - name: Build Android Release APK
+        env:
+          ANDROID_NDK_ROOT: ${{ env.ANDROID_HOME }}/ndk/27.0.12077973
         run: |
           cd app
           flutter build apk --release
