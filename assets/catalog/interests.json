@@ -1,0 +1,77 @@
+{
+  "version": 1,
+  "categories": [
+    {
+      "id": "tech",
+      "name": "Tech",
+      "interests": [
+        { "id": "databases", "name": "Databases" },
+        { "id": "distributed_systems", "name": "Distributed systems" },
+        { "id": "linux", "name": "Linux" },
+        { "id": "security", "name": "Security" },
+        { "id": "ai", "name": "AI" },
+        { "id": "web", "name": "Web" }
+      ]
+    },
+    {
+      "id": "science",
+      "name": "Science",
+      "interests": [
+        { "id": "space", "name": "Space" },
+        { "id": "physics", "name": "Physics" },
+        { "id": "biology", "name": "Biology" },
+        { "id": "chemistry", "name": "Chemistry" },
+        { "id": "climate", "name": "Climate" },
+        { "id": "maths", "name": "Maths" }
+      ]
+    },
+    {
+      "id": "mind",
+      "name": "Mind",
+      "interests": [
+        { "id": "psychology", "name": "Psychology" },
+        { "id": "cognitive_biases", "name": "Cognitive biases" },
+        { "id": "philosophy", "name": "Philosophy" },
+        { "id": "learning", "name": "Learning" },
+        { "id": "habits", "name": "Habits" },
+        { "id": "memory", "name": "Memory" }
+      ]
+    },
+    {
+      "id": "humanities",
+      "name": "Humanities",
+      "interests": [
+        { "id": "history", "name": "History" },
+        { "id": "languages", "name": "Languages" },
+        { "id": "literature", "name": "Literature" },
+        { "id": "economics", "name": "Economics" },
+        { "id": "law", "name": "Law" },
+        { "id": "geography", "name": "Geography" }
+      ]
+    },
+    {
+      "id": "creative",
+      "name": "Creative",
+      "interests": [
+        { "id": "music", "name": "Music" },
+        { "id": "film", "name": "Film" },
+        { "id": "design", "name": "Design" },
+        { "id": "photography", "name": "Photography" },
+        { "id": "writing", "name": "Writing" },
+        { "id": "art", "name": "Art" }
+      ]
+    },
+    {
+      "id": "life",
+      "name": "Life",
+      "interests": [
+        { "id": "cooking", "name": "Cooking" },
+        { "id": "fitness", "name": "Fitness" },
+        { "id": "travel", "name": "Travel" },
+        { "id": "money", "name": "Money" },
+        { "id": "nature", "name": "Nature" },
+        { "id": "games", "name": "Games" }
+      ]
+    }
+  ]
+}

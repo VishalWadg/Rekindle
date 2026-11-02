@@ -1,0 +1,95 @@
+{
+  "version": 1,
+  "templates": {
+    "T1_SPARK": {
+      "calm": [
+        {
+          "variant": "calm_standard",
+          "title": "A thought from {interest}",
+          "body": "{excerpt}"
+        },
+        {
+          "variant": "calm_alt",
+          "title": "You once noted this about {interest}",
+          "body": "{excerpt}"
+        }
+      ],
+      "playful": [
+        {
+          "variant": "playful_standard",
+          "title": "✦ Look what turned up",
+          "body": "From your {interest} pile: {excerpt}"
+        }
+      ]
+    },
+    "T2_STILL_CURIOUS": {
+      "calm": [
+        {
+          "variant": "calm_standard",
+          "title": "Still curious about {interest}?",
+          "body": "It's been a while. No pressure either way."
+        },
+        {
+          "variant": "calm_alt",
+          "title": "Still curious about {interest}?",
+          "body": "{interest} is here whenever you feel like it."
+        }
+      ],
+      "playful": [
+        {
+          "variant": "playful_standard",
+          "title": "{interest} says hi",
+          "body": "Still your kind of rabbit hole?"
+        }
+      ]
+    },
+    "T3_FEW_MINUTES": {
+      "calm": [
+        {
+          "variant": "calm_standard",
+          "title": "A few minutes for {interest}?",
+          "body": "Only if it sounds nice right now."
+        }
+      ],
+      "playful": [
+        {
+          "variant": "playful_standard",
+          "title": "Spare five minutes?",
+          "body": "{interest} has something to show you."
+        }
+      ]
+    },
+    "T4_PICK_ONE": {
+      "calm": [
+        {
+          "variant": "calm_standard",
+          "title": "Which sounds better right now?",
+          "body": "{A} or {B}. Either is fine."
+        }
+      ],
+      "playful": [
+        {
+          "variant": "playful_standard",
+          "title": "Pick a rabbit hole",
+          "body": "{A} or {B}?"
+        }
+      ]
+    },
+    "T5_JOT_IT_DOWN": {
+      "calm": [
+        {
+          "variant": "calm_standard",
+          "title": "One thing you remember about {interest}?",
+          "body": "A fact, a question, anything. Type it here."
+        }
+      ],
+      "playful": [
+        {
+          "variant": "playful_standard",
+          "title": "Quick: {interest}",
+          "body": "What's the first thing that comes to mind?"
+        }
+      ]
+    }
+  }
+}

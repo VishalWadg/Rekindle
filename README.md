@@ -1,36 +1,80 @@
-﻿# Rekindle
+# Rekindle
 
-> A quiet rediscovery app that surfaces thoughts, notes, and quotes you once cared about during idle moments — with zero streaks, zero due dates, and zero pressure.
+> A calm, anti-productivity rediscovery mobile app that gently surfaces thoughts, notes, and curiosities you once cared about during spare moments — with zero streaks, zero due dates, and zero pressure.
 
-Rekindle is explicitly **not** a spaced-repetition or productivity tool. It does not test you or ask what you are overdue to review. Instead, it asks: *"what would you enjoy rediscovering right now?"*
+Rekindle is explicitly **not** a spaced-repetition or productivity tool. It does not test you, track streaks, or tell you what is "overdue". Instead, it asks: *"what would you enjoy rediscovering right now?"*
 
----
-
-## Documentation
-
-- **[System Architecture](docs/architecture.md)** — In-depth system design, domain concepts, Thompson Sampling bandit math, JPA data models, and API specifications.
+Version 0.2 is **100% offline, on-device Flutter** (Android-first, iOS-ready). Release builds declare **no network permissions** and include **zero network packages**.
 
 ---
 
-## Tech Stack
+## Architecture Overview
 
-- **Backend**: Java 25, [Spring Boot 3](https://spring.io/projects/spring-boot), [Spring Data JPA](https://spring.io/projects/spring-data-jpa), [Hibernate](https://hibernate.org/)
-- **Migrations**: [Flyway](https://flywaydb.org/)
-- **Recommendation Engine**: Bayesian Multi-Armed Bandit via Thompson Sampling (`Beta-Bernoulli`) implemented with [Apache Commons Math](https://commons.apache.org/proper/commons-math/) + Redis recency filter
-- **OpenAPI & Docs**: [springdoc-openapi](https://springdoc.org/) (`/v3/api-docs` and Swagger UI)
-- **Database**: PostgreSQL 16 (port 5433 host)
-- **Cache**: Redis 7 (24h cooldown recency cache)
-- **Frontend**: React, TypeScript, [Vite](https://vitejs.dev/), Progressive Web App (PWA)
-
----
-
-## Project Structure
+Rekindle uses a clean two-tier workspace:
 
 ```text
 rekindle/
-├── docs/             # Architecture specifications and diagrams
-├── backend/          # Spring Boot 3 application (Java, JPA, Commons Math)
-├── frontend/         # React PWA client
-├── docker-compose.yml# Local PostgreSQL and Redis setup
-└── README.md
+├── app/                      # Flutter mobile application
+│   ├── lib/
+│   │   ├── app/              # Router (go_router), Theme (Paper/Dark), Providers
+│   │   └── features/
+│   │       ├── onboarding/   # 8-step guided onboarding flow
+│   │       ├── surface/      # Single-thought screen with 250ms cross-fade
+│   │       ├── interests/    # Interest catalog and snippet management
+│   │       ├── explore/      # Hairline-divided library browse
+│   │       ├── insights/     # On-device reflective analytics (no scoreboards)
+│   │       ├── settings/     # Nudge preferences, test nudge, data export
+│   │       └── nudges/       # Local notification gateway & action handlers
+├── packages/
+│   └── rekindle_core/        # Pure Dart domain package (zero Flutter imports)
+│       ├── lib/src/
+│       │   ├── bandit/       # BetaSampler (Marsaglia-Tsang / Box-Muller) & Thompson bandit
+│       │   ├── data/         # Drift SQLite schema v1 (WAL mode, cascades, constraints)
+│       │   ├── governor/     # Delivery governor rules (windows, gaps, backoff)
+│       │   ├── planner/      # Deterministic 72h NudgePlanner
+│       │   └── services/     # SurfaceService, ResponseService (exactly-once updates)
+│       └── test/             # 20+ unit and property tests
+├── assets/
+│   ├── catalog/              # 36 starter interests across 6 categories
+│   └── copy/                 # Calm and Playful copy library (T1–T5 templates)
+├── tool/
+│   └── check_offline.dart    # Offline CI guard (validates zero network imports & no banned words)
+└── .github/workflows/
+    └── build-apk.yml         # Automated GitHub Actions APK build workflow
+```
+
+---
+
+## Core Guarantees & Philosophy
+
+1. **Offline by Construction**: All data lives strictly in the phone's local SQLite database. No server, no accounts, and no telemetry.
+2. **Thompson Sampling Bandit**: Written in pure Dart using Marsaglia-Tsang gamma-ratio sampling. Adapts to your preferences over time.
+3. **Local Scheduled Nudges**: Answerable notifications (T1–T5) scheduled directly with the Android alarm system. Tapping an action button or typing an inline reply updates SQLite without opening the app.
+4. **Ignoring is Always Free**: Dismissing a notification never penalizes an interest and never raises frequency.
+
+---
+
+## Development & Testing
+
+### Running the App
+```powershell
+cd app
+flutter run
+```
+
+### Running Core Unit Tests
+```powershell
+cd packages/rekindle_core
+dart test
+```
+
+### Running the Offline Guard
+```powershell
+dart run tool/check_offline.dart
+```
+
+### Building Release APK
+```powershell
+cd app
+flutter build apk --release
 ```
