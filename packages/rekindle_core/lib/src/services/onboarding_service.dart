@@ -39,11 +39,16 @@ final class OnboardingService {
       final seed = existingState?.installSeed ?? now.millisecondsSinceEpoch;
 
       // 2. Upsert AppState
+      final permStr = draft.permissionGranted
+          ? 'GRANTED'
+          : (draft.level == NotificationLevel.off ? 'DENIED' : 'UNKNOWN');
+
       await db.into(db.appStates).insertOnConflictUpdate(
             AppStatesCompanion(
               id: const Value(1),
               installSeed: Value(seed),
               timezone: Value(timezone),
+              notificationPermission: Value(permStr),
               onboardingCompletedAt: Value(now),
               createdAt: Value(existingState?.createdAt ?? now),
             ),

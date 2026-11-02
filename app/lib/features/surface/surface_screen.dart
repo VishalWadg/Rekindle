@@ -75,7 +75,10 @@ class _SurfaceScreenState extends ConsumerState<SurfaceScreen> {
         elevation: 0,
         title: Row(
           children: [
-            Icon(Icons.auto_awesome, size: 20, color: theme.colorScheme.primary),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(6),
+              child: Image.asset('assets/images/logo.png', width: 24, height: 24),
+            ),
             const SizedBox(width: 8),
             Text(
               'rekindle',

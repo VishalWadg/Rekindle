@@ -223,6 +223,7 @@ final class OnboardingDraft {
     this.voice = NotificationVoice.calm,
     this.showTextOnLockScreen = false,
     this.requestFirstNudgeQuickly = false,
+    this.permissionGranted = false,
   });
 
   final List<String> selectedInterests;
@@ -232,6 +233,7 @@ final class OnboardingDraft {
   final NotificationVoice voice;
   final bool showTextOnLockScreen;
   final bool requestFirstNudgeQuickly;
+  final bool permissionGranted;
 
   OnboardingDraft copyWith({
     List<String>? selectedInterests,
@@ -241,6 +243,7 @@ final class OnboardingDraft {
     NotificationVoice? voice,
     bool? showTextOnLockScreen,
     bool? requestFirstNudgeQuickly,
+    bool? permissionGranted,
   }) {
     return OnboardingDraft(
       selectedInterests: selectedInterests ?? this.selectedInterests,
@@ -250,6 +253,7 @@ final class OnboardingDraft {
       voice: voice ?? this.voice,
       showTextOnLockScreen: showTextOnLockScreen ?? this.showTextOnLockScreen,
       requestFirstNudgeQuickly: requestFirstNudgeQuickly ?? this.requestFirstNudgeQuickly,
+      permissionGranted: permissionGranted ?? this.permissionGranted,
     );
   }
 }

@@ -41,6 +41,13 @@ class LocalNotificationGateway implements NotificationGateway {
     _initialized = true;
   }
 
+  Future<bool> requestPermission() async {
+    final android = _plugin.resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin>();
+    final granted = await android?.requestNotificationsPermission();
+    return granted ?? false;
+  }
+
   @override
   Future<void> scheduleNotification({
     required int id,

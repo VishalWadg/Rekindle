@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:rekindle_core/rekindle_core.dart';
 import '../../app/providers.dart';
+import '../nudges/local_notification_gateway.dart';
 
 class OnboardingScreen extends ConsumerStatefulWidget {
   const OnboardingScreen({super.key});
@@ -25,6 +26,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   NotificationVoice _voice = NotificationVoice.calm;
   bool _showTextOnLockScreen = false;
   bool _requestFirstNudgeQuickly = true;
+  bool _permissionGranted = false;
   bool _isCompleting = false;
 
   // Catalog loaded from asset
@@ -108,14 +110,18 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       voice: _voice,
       showTextOnLockScreen: _showTextOnLockScreen,
       requestFirstNudgeQuickly: _requestFirstNudgeQuickly,
+      permissionGranted: _permissionGranted,
     );
 
     final onboardingService = ref.read(onboardingServiceProvider);
     await onboardingService.complete(draft);
 
-    if (_level != NotificationLevel.off) {
+    if (_level != NotificationLevel.off && _permissionGranted) {
       final planner = ref.read(nudgePlannerProvider);
-      await planner.replan(DateTime.now());
+      await planner.replan(
+        DateTime.now(),
+        scheduleFirstNudgeQuickly: _requestFirstNudgeQuickly,
+      );
     }
 
     if (mounted) {
@@ -194,7 +200,10 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.auto_awesome, size: 48, color: theme.colorScheme.primary),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: Image.asset('assets/images/logo.png', width: 72, height: 72),
+          ),
           const SizedBox(height: 24),
           Text(
             'rekindle',
@@ -761,7 +770,10 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.shield_outlined, size: 56, color: theme.colorScheme.primary),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: Image.asset('assets/images/logo.png', width: 64, height: 64),
+          ),
           const SizedBox(height: 24),
           Text('Our promise', style: theme.textTheme.headlineSmall?.copyWith(fontFamily: 'Lora')),
           const SizedBox(height: 16),
@@ -782,13 +794,20 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
             width: double.infinity,
             height: 48,
             child: ElevatedButton(
-              onPressed: _nextStep,
+              onPressed: () async {
+                final granted = await LocalNotificationGateway.instance.requestPermission();
+                setState(() => _permissionGranted = granted);
+                _nextStep();
+              },
               child: const Text('Allow gentle nudges'),
             ),
           ),
           const SizedBox(height: 12),
           TextButton(
-            onPressed: _nextStep,
+            onPressed: () {
+              setState(() => _permissionGranted = false);
+              _nextStep();
+            },
             child: const Text('Continue in-app only'),
           )
         ],

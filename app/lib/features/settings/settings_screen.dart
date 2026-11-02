@@ -121,6 +121,10 @@ class SettingsScreen extends ConsumerWidget {
                 child: Text('ABOUT', style: theme.textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w600, color: theme.colorScheme.primary)),
               ),
               ListTile(
+                leading: ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: Image.asset('assets/images/logo.png', width: 36, height: 36),
+                ),
                 title: const Text('Rekindle v0.2.0 (Offline)'),
                 subtitle: const Text('100% on-device. Zero network calls. Nothing leaves this phone.\nLong-press to view bandit debug info.'),
                 onLongPress: () => _showDebugBanditSheet(context, ref),

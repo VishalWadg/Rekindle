@@ -78,7 +78,7 @@ final class NudgePlanner {
   final Uuid uuid;
 
   /// Re-plans up to 6 nudges over the 72-hour horizon deterministically.
-  Future<List<PlannedNudge>> replan(DateTime now) async {
+  Future<List<PlannedNudge>> replan(DateTime now, {bool scheduleFirstNudgeQuickly = false}) async {
     final utcNow = now.toUtc();
 
     // 1. Fetch current AppState and NotificationSettings
@@ -172,14 +172,18 @@ final class NudgePlanner {
       for (var slot = 0; slot < dailyCount; slot++) {
         if (planned.length >= 6) break;
 
-        // Deterministic candidate time within delivery windows (afternoon ~ 14:00 default)
-        var candidateTime = DateTime.utc(targetDay.year, targetDay.month, targetDay.day, 14, 0);
-        if (candidateTime.isBefore(lastPlannedTime.add(minGap))) {
-          candidateTime = lastPlannedTime.add(minGap);
-        }
-
-        if (candidateTime.isBefore(earliest)) {
-          candidateTime = earliest.add(Duration(hours: slot * 6));
+        DateTime candidateTime;
+        if (scheduleFirstNudgeQuickly && planned.isEmpty) {
+          candidateTime = now.add(const Duration(minutes: 2));
+        } else {
+          // Deterministic candidate time within delivery windows (afternoon ~ 14:00 default)
+          candidateTime = DateTime.utc(targetDay.year, targetDay.month, targetDay.day, 14, 0);
+          if (candidateTime.isBefore(lastPlannedTime.add(minGap))) {
+            candidateTime = lastPlannedTime.add(minGap);
+          }
+          if (candidateTime.isBefore(earliest)) {
+            candidateTime = earliest.add(Duration(hours: slot * 6));
+          }
         }
 
         // Draw interest

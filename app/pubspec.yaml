@@ -44,3 +44,4 @@ flutter:
   assets:
     - assets/catalog/interests.json
     - assets/copy/nudge_copy_en.json
+    - assets/images/logo.png
