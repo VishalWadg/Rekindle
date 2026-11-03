@@ -94,16 +94,11 @@ jobs:
           RELEASE_URL="https://github.com/${{ github.repository }}/releases/tag/${TAG}"
           DOWNLOAD_URL="https://github.com/${{ github.repository }}/releases/download/${TAG}/app-release.apk"
 
-          read -r -d '' CAPTION << EOM || true
-🚀 <b>Rekindle APK Build Available</b>
-
-<b>Commit:</b> ${SAFE_COMMIT}
-<b>Version/Tag:</b> <code>${TAG}</code> (${SHORT_SHA})
-
-📦 <i>Download and install directly from the attached file or GitHub Release.</i>
-
-🔗 <a href="${RELEASE_URL}">View GitHub Release</a> | <a href="${DOWNLOAD_URL}">Direct APK Download</a>
-EOM
+          CAPTION="🚀 <b>Rekindle APK Build Available</b>"$'\n\n'
+          CAPTION+="<b>Commit:</b> ${SAFE_COMMIT}"$'\n'
+          CAPTION+="<b>Version/Tag:</b> <code>${TAG}</code> (${SHORT_SHA})"$'\n\n'
+          CAPTION+="📦 <i>Download and install directly from the attached file or GitHub Release.</i>"$'\n\n'
+          CAPTION+="🔗 <a href=\"${RELEASE_URL}\">View GitHub Release</a> | <a href=\"${DOWNLOAD_URL}\">Direct APK Download</a>"
 
           echo "Sending APK document to Telegram..."
           if ! curl --fail-with-body --silent --show-error \
