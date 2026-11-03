@@ -80,3 +80,44 @@ jobs:
           files: app/build/app/outputs/flutter-apk/app-release.apk
           prerelease: ${{ !startsWith(github.ref, 'refs/tags/v') }}
           generate_release_notes: true
+
+      - name: Send Telegram Notification with APK
+        if: (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main') && github.event_name != 'pull_request'
+        env:
+          BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          TAG="${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'latest' }}"
+          RAW_COMMIT="${{ github.event.head_commit.message }}"
+          SAFE_COMMIT=$(echo "$RAW_COMMIT" | head -n 1 | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g')
+          SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+          RELEASE_URL="https://github.com/${{ github.repository }}/releases/tag/${TAG}"
+          DOWNLOAD_URL="https://github.com/${{ github.repository }}/releases/download/${TAG}/app-release.apk"
+
+          read -r -d '' CAPTION << EOM || true
+🚀 <b>Rekindle APK Build Available</b>
+
+<b>Commit:</b> ${SAFE_COMMIT}
+<b>Version/Tag:</b> <code>${TAG}</code> (${SHORT_SHA})
+
+📦 <i>Download and install directly from the attached file or GitHub Release.</i>
+
+🔗 <a href="${RELEASE_URL}">View GitHub Release</a> | <a href="${DOWNLOAD_URL}">Direct APK Download</a>
+EOM
+
+          echo "Sending APK document to Telegram..."
+          if ! curl --fail-with-body --silent --show-error \
+            --request POST \
+            "https://api.telegram.org/bot${BOT_TOKEN}/sendDocument" \
+            -F "chat_id=${CHAT_ID}" \
+            -F "document=@app/build/app/outputs/flutter-apk/app-release.apk" \
+            -F "caption=${CAPTION}" \
+            -F "parse_mode=HTML"; then
+            echo "sendDocument failed, falling back to sendMessage..."
+            curl --fail-with-body --silent --show-error \
+              --request POST \
+              "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
+              --data-urlencode "chat_id=${CHAT_ID}" \
+              --data-urlencode "text=${CAPTION}" \
+              --data-urlencode "parse_mode=HTML"
+          fi
