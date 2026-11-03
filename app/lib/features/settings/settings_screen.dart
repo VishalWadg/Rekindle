@@ -77,21 +77,47 @@ class SettingsScreen extends ConsumerWidget {
                 subtitle: const Text('Tests exact alarm background delivery'),
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () async {
-                  final gateway = ref.read(notificationGatewayProvider);
-                  await gateway.scheduleNotification(
-                    id: 999999,
-                    title: 'Rekindle Test Nudge',
-                    body: 'Gentle notification delivery is working properly on this device.',
-                    scheduledDate: DateTime.now().add(const Duration(seconds: 10)),
-                    payload: '{"test":true}',
-                    actions: const [
-                      NotificationActionInfo(id: 'ok', label: 'Received'),
-                    ],
-                  );
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Test nudge scheduled for 10 seconds from now.')),
+                  try {
+                    final gateway = ref.read(notificationGatewayProvider);
+                    await gateway.scheduleNotification(
+                      id: 999999,
+                      title: 'Rekindle Test Nudge',
+                      body: 'Gentle notification delivery is working properly on this device.',
+                      scheduledDate: DateTime.now().add(const Duration(seconds: 10)),
+                      payload: '{"test":true}',
+                      actions: const [
+                        NotificationActionInfo(id: 'ok', label: 'Received'),
+                      ],
                     );
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Test nudge scheduled for 10 seconds from now.')),
+                      );
+                    }
+                  } catch (e) {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Could not schedule: $e')),
+                      );
+                    }
+                  }
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.security_outlined),
+                title: const Text('Exact alarm permission'),
+                subtitle: const Text('Required on Android 13/14 for exact second timing'),
+                trailing: const Icon(Icons.open_in_new),
+                onTap: () async {
+                  final canExact = await LocalNotificationGateway.instance.canScheduleExactNotifications();
+                  if (canExact) {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Exact alarm permission is already granted.')),
+                      );
+                    }
+                  } else {
+                    await LocalNotificationGateway.instance.requestExactAlarmsPermission();
                   }
                 },
               ),
@@ -101,12 +127,20 @@ class SettingsScreen extends ConsumerWidget {
                 subtitle: const Text('Schedules 72h nudges (with quick 2-min nudge)'),
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () async {
-                  final planner = ref.read(nudgePlannerProvider);
-                  await planner.replan(DateTime.now(), scheduleFirstNudgeQuickly: true);
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Nudges replanned! First nudge scheduled in 2 minutes.')),
-                    );
+                  try {
+                    final planner = ref.read(nudgePlannerProvider);
+                    await planner.replan(DateTime.now(), scheduleFirstNudgeQuickly: true);
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Nudges replanned! First nudge scheduled in 2 minutes.')),
+                      );
+                    }
+                  } catch (e) {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Could not replan: $e')),
+                      );
+                    }
                   }
                 },
               ),

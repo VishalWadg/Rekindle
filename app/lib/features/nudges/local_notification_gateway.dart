@@ -67,6 +67,28 @@ class LocalNotificationGateway implements NotificationGateway {
     return await android?.areNotificationsEnabled() ?? true;
   }
 
+  /// Check whether exact alarm permission is currently granted
+  Future<bool> canScheduleExactNotifications() async {
+    final android = _plugin.resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin>();
+    try {
+      return await android?.canScheduleExactNotifications() ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Request exact alarms permission (opens Alarms & reminders settings on Android 13/14+)
+  Future<bool?> requestExactAlarmsPermission() async {
+    final android = _plugin.resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin>();
+    try {
+      return await android?.requestExactAlarmsPermission();
+    } catch (_) {
+      return null;
+    }
+  }
+
   /// Immediate test notification for instant verification (zero alarm delay)
   Future<void> showInstantTestNotification({
     String title = 'Rekindle · A thought for you',
@@ -133,26 +155,48 @@ class LocalNotificationGateway implements NotificationGateway {
     final notificationDetails = NotificationDetails(android: androidDetails);
 
     final tzDate = tz.TZDateTime.from(scheduledDate, tz.local);
+    var safeTzDate = tzDate;
+    final nowTz = tz.TZDateTime.now(tz.local);
+    if (!safeTzDate.isAfter(nowTz)) {
+      safeTzDate = nowTz.add(const Duration(seconds: 5));
+    }
 
     final android = _plugin.resolvePlatformSpecificImplementation<
         AndroidFlutterLocalNotificationsPlugin>();
-    bool canExact = true;
+    bool canExact = false;
     try {
-      canExact = await android?.canScheduleExactNotifications() ?? true;
+      canExact = await android?.canScheduleExactNotifications() ?? false;
     } catch (_) {}
 
-    final scheduleMode = canExact
-        ? AndroidScheduleMode.exactAllowWhileIdle
-        : AndroidScheduleMode.inexactAllowWhileIdle;
+    if (canExact) {
+      try {
+        await _plugin.zonedSchedule(
+          id,
+          title,
+          body,
+          safeTzDate,
+          notificationDetails,
+          androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+          uiLocalNotificationDateInterpretation:
+              UILocalNotificationDateInterpretation.absoluteTime,
+          payload: payload,
+        );
+        return;
+      } catch (_) {
+        // Fallback to inexact if exact schedule fails or throws SecurityException on Android 13/14
+      }
+    }
 
+    // Safe fallback that never requires exact alarm permissions and never throws SecurityException
     await _plugin.zonedSchedule(
       id,
       title,
       body,
-      tzDate,
+      safeTzDate,
       notificationDetails,
-      androidScheduleMode: scheduleMode,
-      uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
+      androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+      uiLocalNotificationDateInterpretation:
+          UILocalNotificationDateInterpretation.absoluteTime,
       payload: payload,
     );
   }

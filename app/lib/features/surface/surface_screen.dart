@@ -30,30 +30,34 @@ class _SurfaceScreenState extends ConsumerState<SurfaceScreen> {
   }
 
   Future<void> _checkAndScheduleNudges() async {
-    final db = ref.read(databaseProvider);
-    final appState = await (db.select(db.appStates)..where((tbl) => tbl.id.equals(1))).getSingleOrNull();
-    if (appState == null || appState.onboardingCompletedAt == null) return;
+    try {
+      final db = ref.read(databaseProvider);
+      final appState = await (db.select(db.appStates)..where((tbl) => tbl.id.equals(1))).getSingleOrNull();
+      if (appState == null || appState.onboardingCompletedAt == null) return;
 
-    // Check if notifications are enabled at the OS level across all Android versions
-    final enabled = await LocalNotificationGateway.instance.areNotificationsEnabled();
-    if (enabled && appState.notificationPermission != 'GRANTED') {
-      await (db.update(db.appStates)..where((tbl) => tbl.id.equals(1))).write(
-        const AppStatesCompanion(notificationPermission: Value('GRANTED')),
-      );
-    }
+      // Check if notifications are enabled at the OS level across all Android versions
+      final enabled = await LocalNotificationGateway.instance.areNotificationsEnabled();
+      if (enabled && appState.notificationPermission != 'GRANTED') {
+        await (db.update(db.appStates)..where((tbl) => tbl.id.equals(1))).write(
+          const AppStatesCompanion(notificationPermission: Value('GRANTED')),
+        );
+      }
 
-    // Check if any future nudges are currently planned
-    final futureCount = await (db.select(db.exposuresTable)
-          ..where((tbl) =>
-              tbl.channel.equals('PUSH') &
-              tbl.reaction.equals('NONE') &
-              tbl.deliveredAt.isNull() &
-              tbl.scheduledFor.isBiggerThanValue(DateTime.now().toUtc())))
-        .get();
+      // Check if any future nudges are currently planned
+      final futureCount = await (db.select(db.exposuresTable)
+            ..where((tbl) =>
+                tbl.channel.equals('PUSH') &
+                tbl.reaction.equals('NONE') &
+                tbl.deliveredAt.isNull() &
+                tbl.scheduledFor.isBiggerThanValue(DateTime.now().toUtc())))
+          .get();
 
-    if (futureCount.isEmpty && enabled) {
-      final planner = ref.read(nudgePlannerProvider);
-      await planner.replan(DateTime.now(), scheduleFirstNudgeQuickly: false);
+      if (futureCount.isEmpty && enabled) {
+        final planner = ref.read(nudgePlannerProvider);
+        await planner.replan(DateTime.now(), scheduleFirstNudgeQuickly: false);
+      }
+    } catch (e) {
+      debugPrint('Safe guard: error checking/scheduling nudges on startup: $e');
     }
   }
 

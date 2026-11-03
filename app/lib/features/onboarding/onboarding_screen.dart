@@ -117,11 +117,15 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     await onboardingService.complete(draft);
 
     if (_level != NotificationLevel.off && _permissionGranted) {
-      final planner = ref.read(nudgePlannerProvider);
-      await planner.replan(
-        DateTime.now(),
-        scheduleFirstNudgeQuickly: _requestFirstNudgeQuickly,
-      );
+      try {
+        final planner = ref.read(nudgePlannerProvider);
+        await planner.replan(
+          DateTime.now(),
+          scheduleFirstNudgeQuickly: _requestFirstNudgeQuickly,
+        );
+      } catch (e) {
+        debugPrint('Safe guard: error scheduling initial nudges: $e');
+      }
     }
 
     if (mounted) {
