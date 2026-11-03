@@ -1,4 +1,4 @@
-# Rekindle
+﻿# Rekindle
 
 > A calm, anti-productivity rediscovery mobile app that gently surfaces thoughts, notes, and curiosities you once cared about during spare moments — with zero streaks, zero due dates, and zero pressure.
 

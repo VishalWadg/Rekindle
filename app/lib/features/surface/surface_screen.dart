@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:drift/drift.dart' hide isNotNull, isNull, Column;
 import 'package:rekindle_core/rekindle_core.dart';
 import '../../app/providers.dart';
+import '../nudges/local_notification_gateway.dart';
 
 class SurfaceScreen extends ConsumerStatefulWidget {
   const SurfaceScreen({super.key, this.exposureId});
@@ -22,6 +24,37 @@ class _SurfaceScreenState extends ConsumerState<SurfaceScreen> {
   void initState() {
     super.initState();
     _loadNext();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkAndScheduleNudges();
+    });
+  }
+
+  Future<void> _checkAndScheduleNudges() async {
+    final db = ref.read(databaseProvider);
+    final appState = await (db.select(db.appStates)..where((tbl) => tbl.id.equals(1))).getSingleOrNull();
+    if (appState == null || appState.onboardingCompletedAt == null) return;
+
+    // Check if notifications are enabled at the OS level across all Android versions
+    final enabled = await LocalNotificationGateway.instance.areNotificationsEnabled();
+    if (enabled && appState.notificationPermission != 'GRANTED') {
+      await (db.update(db.appStates)..where((tbl) => tbl.id.equals(1))).write(
+        const AppStatesCompanion(notificationPermission: Value('GRANTED')),
+      );
+    }
+
+    // Check if any future nudges are currently planned
+    final futureCount = await (db.select(db.exposuresTable)
+          ..where((tbl) =>
+              tbl.channel.equals('PUSH') &
+              tbl.reaction.equals('NONE') &
+              tbl.deliveredAt.isNull() &
+              tbl.scheduledFor.isBiggerThanValue(DateTime.now().toUtc())))
+        .get();
+
+    if (futureCount.isEmpty && enabled) {
+      final planner = ref.read(nudgePlannerProvider);
+      await planner.replan(DateTime.now(), scheduleFirstNudgeQuickly: false);
+    }
   }
 
   Future<void> _loadNext() async {

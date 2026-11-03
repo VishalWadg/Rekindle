@@ -24,13 +24,13 @@ class LocalNotificationGateway implements NotificationGateway {
       onDidReceiveBackgroundNotificationResponse: onBackgroundNotificationResponse,
     );
 
-    // Create "nudges" channel with LOW importance
+    // Create "nudges" channel with DEFAULT importance so notifications appear visibly in status bar and shade
     const androidChannel = AndroidNotificationChannel(
       'nudges',
       'Gentle nudges',
       description: 'Occasional, non-intrusive questions about things you once loved.',
-      importance: Importance.low,
-      enableVibration: false,
+      importance: Importance.defaultImportance,
+      enableVibration: true,
       playSound: false,
     );
 
@@ -41,11 +41,58 @@ class LocalNotificationGateway implements NotificationGateway {
     _initialized = true;
   }
 
+  /// Version-agnostic permission check:
+  /// - Android 13+ (API 33+): prompts runtime POST_NOTIFICATIONS dialog
+  /// - Android <= 12: checks if app notifications are enabled in OS settings
   Future<bool> requestPermission() async {
     final android = _plugin.resolvePlatformSpecificImplementation<
         AndroidFlutterLocalNotificationsPlugin>();
-    final granted = await android?.requestNotificationsPermission();
-    return granted ?? false;
+    if (android == null) return false;
+
+    // 1. Trigger runtime prompt (Android 13+)
+    final granted = await android.requestNotificationsPermission();
+    if (granted != null) {
+      return granted;
+    }
+
+    // 2. Fallback for Android 12 and below (or if prompt was already resolved)
+    final areEnabled = await android.areNotificationsEnabled();
+    return areEnabled ?? true;
+  }
+
+  /// Check current notification permission state without re-prompting
+  Future<bool> areNotificationsEnabled() async {
+    final android = _plugin.resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin>();
+    return await android?.areNotificationsEnabled() ?? true;
+  }
+
+  /// Immediate test notification for instant verification (zero alarm delay)
+  Future<void> showInstantTestNotification({
+    String title = 'Rekindle · A thought for you',
+    String body = 'Curiosity is the engine of intellectual rediscovery. Tap to open.',
+  }) async {
+    const androidDetails = AndroidNotificationDetails(
+      'nudges',
+      'Gentle nudges',
+      channelDescription: 'Occasional, non-intrusive questions about things you once loved.',
+      importance: Importance.high,
+      priority: Priority.high,
+      autoCancel: true,
+      actions: [
+        AndroidNotificationAction('keep', 'Keep'),
+        AndroidNotificationAction('skip', 'Skip'),
+        AndroidNotificationAction('more', 'Tell me more', showsUserInterface: true),
+      ],
+    );
+
+    await _plugin.show(
+      888888,
+      title,
+      body,
+      const NotificationDetails(android: androidDetails),
+      payload: '{"v":1,"test":true}',
+    );
   }
 
   @override
@@ -70,10 +117,10 @@ class LocalNotificationGateway implements NotificationGateway {
       'nudges',
       'Gentle nudges',
       channelDescription: 'Occasional, non-intrusive questions about things you once loved.',
-      importance: Importance.low,
-      priority: Priority.low,
+      importance: Importance.defaultImportance,
+      priority: Priority.defaultPriority,
       autoCancel: true,
-      onlyAlertOnce: true,
+      onlyAlertOnce: false,
       timeoutAfter: 24 * 60 * 60 * 1000, // 24 hours
       styleInformation: BigTextStyleInformation(
         body,
@@ -87,13 +134,24 @@ class LocalNotificationGateway implements NotificationGateway {
 
     final tzDate = tz.TZDateTime.from(scheduledDate, tz.local);
 
+    final android = _plugin.resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin>();
+    bool canExact = true;
+    try {
+      canExact = await android?.canScheduleExactNotifications() ?? true;
+    } catch (_) {}
+
+    final scheduleMode = canExact
+        ? AndroidScheduleMode.exactAllowWhileIdle
+        : AndroidScheduleMode.inexactAllowWhileIdle;
+
     await _plugin.zonedSchedule(
       id,
       title,
       body,
       tzDate,
       notificationDetails,
-      androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+      androidScheduleMode: scheduleMode,
       uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
       payload: payload,
     );

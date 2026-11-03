@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:drift/drift.dart' as drift;
 import 'package:rekindle_core/rekindle_core.dart';
 import '../../app/providers.dart';
+import '../nudges/local_notification_gateway.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -55,9 +56,26 @@ class SettingsScreen extends ConsumerWidget {
                 },
               ),
               ListTile(
-                title: const Text('Send me a test nudge'),
-                subtitle: const Text('Schedules a real sample notification in 10 seconds'),
-                trailing: const Icon(Icons.notification_add_outlined),
+                leading: const Icon(Icons.flash_on_outlined, color: Colors.amber),
+                title: const Text('Send test nudge instantly'),
+                subtitle: const Text('Fires immediately to verify shade and sounds'),
+                onTap: () async {
+                  await LocalNotificationGateway.instance.showInstantTestNotification(
+                    title: 'Rekindle · Instant Test Nudge',
+                    body: 'Notification delivery and actions are fully operational!',
+                  );
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Test nudge fired! Check your notification shade.')),
+                    );
+                  }
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.alarm_outlined),
+                title: const Text('Schedule test nudge in 10s'),
+                subtitle: const Text('Tests exact alarm background delivery'),
+                trailing: const Icon(Icons.chevron_right),
                 onTap: () async {
                   final gateway = ref.read(notificationGatewayProvider);
                   await gateway.scheduleNotification(
@@ -73,6 +91,21 @@ class SettingsScreen extends ConsumerWidget {
                   if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(content: Text('Test nudge scheduled for 10 seconds from now.')),
+                    );
+                  }
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.refresh_outlined),
+                title: const Text('Re-plan all nudges'),
+                subtitle: const Text('Schedules 72h nudges (with quick 2-min nudge)'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () async {
+                  final planner = ref.read(nudgePlannerProvider);
+                  await planner.replan(DateTime.now(), scheduleFirstNudgeQuickly: true);
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Nudges replanned! First nudge scheduled in 2 minutes.')),
                     );
                   }
                 },
