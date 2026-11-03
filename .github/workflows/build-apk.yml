@@ -88,17 +88,23 @@ jobs:
           CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
           TAG="${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'latest' }}"
+          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            VERSION="${{ github.ref_name }}"
+          else
+            PUB_VER=$(grep '^version:' app/pubspec.yaml | sed -E 's/version:[[:space:]]*//; s/\+.*//')
+            VERSION="v${PUB_VER}"
+          fi
           RAW_COMMIT="${{ github.event.head_commit.message }}"
           SAFE_COMMIT=$(echo "$RAW_COMMIT" | head -n 1 | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g')
-          SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
           RELEASE_URL="https://github.com/${{ github.repository }}/releases/tag/${TAG}"
           DOWNLOAD_URL="https://github.com/${{ github.repository }}/releases/download/${TAG}/app-release.apk"
 
-          CAPTION="🚀 <b>Rekindle APK Build Available</b>"$'\n\n'
-          CAPTION+="<b>Commit:</b> ${SAFE_COMMIT}"$'\n'
-          CAPTION+="<b>Version/Tag:</b> <code>${TAG}</code> (${SHORT_SHA})"$'\n\n'
-          CAPTION+="📦 <i>Download and install directly from the attached file or GitHub Release.</i>"$'\n\n'
-          CAPTION+="🔗 <a href=\"${RELEASE_URL}\">View GitHub Release</a> | <a href=\"${DOWNLOAD_URL}\">Direct APK Download</a>"
+          CAPTION="🚀 <b>New Rekindle : ${VERSION}</b>"$'\n\n'
+          CAPTION+="A new Android build has been built and published!"$'\n\n'
+          CAPTION+="<b>Features:</b>"$'\n'
+          CAPTION+="• ${SAFE_COMMIT}"$'\n\n'
+          CAPTION+="📥 <a href=\"${DOWNLOAD_URL}\">Direct APK Download</a>"$'\n'
+          CAPTION+="🌐 <a href=\"${RELEASE_URL}\">GitHub Release Notes</a>"
 
           echo "Sending APK document to Telegram..."
           if ! curl --fail-with-body --silent --show-error \
