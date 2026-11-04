@@ -159,3 +159,29 @@ sequenceDiagram
     GHA->>TG: sendDocument (app-release.apk + Formatted Caption)
     TG-->>Dev: Instant Mobile Download in Group
 ```
+
+---
+
+## 8. Offline Reminder Scheduling Architecture
+
+The reminder system is an independent, 100% offline subsystem that allows users to attach intentional, recurring or one-time revisit reminders to thoughts or activities.
+
+```mermaid
+graph TD
+    UserAction[User Creates/Updates Reminder] --> Repos[ReminderRepository]
+    Repos --> DB[(Drift SQLite v2<br/>reminders, recurrence_rules,<br/>reminder_occurrences, reminder_settings)]
+    Repos --> RecEngine[RecurrenceEngine<br/>Pure Dart Timezone Calculation]
+    RecEngine --> NextOcc[Next Occurrence Generated]
+    NextOcc --> DB
+    NextOcc --> Scheduler[LocalNotificationScheduler]
+    Scheduler --> AndroidAlarms[Android AlarmManager]
+```
+
+### Architectural Boundaries & Rules:
+1. **Decoupled from Recommendation Engine**: Thompson Sampling recommendations never automatically schedule reminders; only deliberate user actions create or edit reminders.
+2. **Local DB as Single Source of Truth**: Android notification alarms are derived representations. If the OS drops an alarm or the device reboots, local reconciliation restores alarms from the database.
+3. **Single Next Occurrence**: Only the immediate next occurrence is computed and scheduled. Once delivered or completed, the next occurrence is calculated and enqueued.
+4. **Timezone Awareness & DST Resilience**:
+   - `IntervalRule` evaluates elapsed wall time ($\Delta t$).
+   - `WeeklyRule` evaluates local calendar weekdays and wall-clock time in the configured IANA timezone location using the `timezone` package.
+   - Ambiguous or skipped DST transitions gracefully resolve to the nearest valid local instant.

@@ -79,6 +79,20 @@ class SettingsScreen extends ConsumerWidget {
               ),
               const Divider(height: 32),
 
+              // Reminders Section
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                child: Text('REMINDERS', style: theme.textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w600, color: theme.colorScheme.primary)),
+              ),
+              ListTile(
+                leading: const Icon(Icons.alarm_outlined),
+                title: const Text('Intentional reminders'),
+                subtitle: const Text('Manage scheduled revisit alerts'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => context.push('/reminders'),
+              ),
+              const Divider(height: 32),
+
               // Insights Section
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),

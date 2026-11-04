@@ -115,6 +115,76 @@ class ErrorLogsTable extends Table {
   TextColumn get stack => text().nullable().withLength(max: 4096)();
 }
 
+class RemindersTable extends Table {
+  @override
+  String get tableName => 'reminders';
+
+  TextColumn get id => text()(); // UUIDv4
+  TextColumn get title => text().withLength(min: 1, max: 200)();
+  TextColumn get description => text().nullable()();
+  TextColumn get status => text()(); // active, paused, completed, cancelled
+  TextColumn get scheduleType => text()(); // once, interval, weekly
+  DateTimeColumn get startLocal => dateTime()();
+  TextColumn get timezoneId => text()();
+  DateTimeColumn get nextOccurrenceUtc => dateTime().nullable()();
+  IntColumn get scheduleVersion => integer().withDefault(const Constant(1))();
+  BoolColumn get notificationEnabled => boolean().withDefault(const Constant(true))();
+  TextColumn get linkedActivityId => text().nullable()();
+  DateTimeColumn get createdAt => dateTime()();
+  DateTimeColumn get updatedAt => dateTime()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+class RecurrenceRulesTable extends Table {
+  @override
+  String get tableName => 'recurrence_rules';
+
+  TextColumn get id => text()(); // UUIDv4
+  TextColumn get reminderId => text().customConstraint('NOT NULL REFERENCES reminders(id) ON DELETE CASCADE')();
+  TextColumn get ruleType => text()(); // once, interval, weekly
+  TextColumn get configJson => text()();
+  IntColumn get schemaVersion => integer().withDefault(const Constant(1))();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+class ReminderOccurrencesTable extends Table {
+  @override
+  String get tableName => 'reminder_occurrences';
+
+  TextColumn get id => text()(); // UUIDv4
+  TextColumn get reminderId => text().customConstraint('NOT NULL REFERENCES reminders(id) ON DELETE CASCADE')();
+  IntColumn get scheduleVersion => integer()();
+  DateTimeColumn get scheduledAtUtc => dateTime()();
+  DateTimeColumn get scheduledLocal => dateTime()();
+  TextColumn get status => text()(); // pending, scheduled, completed, skipped, cancelled, missed
+  IntColumn get notificationId => integer()();
+  DateTimeColumn get createdAt => dateTime()();
+  DateTimeColumn get updatedAt => dateTime()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+
+  @override
+  List<Set<Column>> get uniqueKeys => [
+    {reminderId, scheduleVersion, scheduledAtUtc},
+  ];
+}
+
+class ReminderSettingsTable extends Table {
+  @override
+  String get tableName => 'reminder_settings';
+
+  TextColumn get key => text()();
+  TextColumn get value => text()();
+
+  @override
+  Set<Column> get primaryKey => {key};
+}
+
 @DriftDatabase(tables: [
   AppStates,
   NotificationSettingsTable,
@@ -124,18 +194,40 @@ class ErrorLogsTable extends Table {
   AnalyticsEventsTable,
   AnalyticsDailyTable,
   ErrorLogsTable,
+  RemindersTable,
+  RecurrenceRulesTable,
+  ReminderOccurrencesTable,
+  ReminderSettingsTable,
 ])
 class AppDatabase extends _$AppDatabase {
   AppDatabase(QueryExecutor e) : super(e);
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
     beforeOpen: (details) async {
       await customStatement('PRAGMA foreign_keys = ON;');
       await customStatement('PRAGMA busy_timeout = 5000;');
+    },
+    onUpgrade: (m, from, to) async {
+      if (from < 2) {
+        await m.createTable(remindersTable);
+        await m.createTable(recurrenceRulesTable);
+        await m.createTable(reminderOccurrencesTable);
+        await m.createTable(reminderSettingsTable);
+
+        await customStatement('CREATE INDEX IF NOT EXISTS idx_reminders_status_next ON reminders(status, next_occurrence_utc);');
+        await customStatement('CREATE INDEX IF NOT EXISTS idx_occurrences_reminder_status ON reminder_occurrences(reminder_id, status);');
+        await customStatement('CREATE INDEX IF NOT EXISTS idx_occurrences_scheduled_utc ON reminder_occurrences(scheduled_at_utc);');
+      }
+    },
+    onCreate: (m) async {
+      await m.createAll();
+      await customStatement('CREATE INDEX IF NOT EXISTS idx_reminders_status_next ON reminders(status, next_occurrence_utc);');
+      await customStatement('CREATE INDEX IF NOT EXISTS idx_occurrences_reminder_status ON reminder_occurrences(reminder_id, status);');
+      await customStatement('CREATE INDEX IF NOT EXISTS idx_occurrences_scheduled_utc ON reminder_occurrences(scheduled_at_utc);');
     },
   );
 }

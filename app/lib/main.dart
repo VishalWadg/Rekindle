@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:timezone/data/latest_all.dart' as tz_data;
 import 'package:timezone/timezone.dart' as tz;
+import 'app/providers.dart';
 import 'app/router.dart';
 import 'app/theme/theme.dart';
 import 'features/nudges/local_notification_gateway.dart';
@@ -25,11 +26,42 @@ void main() async {
   runApp(const ProviderScope(child: RekindleApp()));
 }
 
-class RekindleApp extends ConsumerWidget {
+class RekindleApp extends ConsumerStatefulWidget {
   const RekindleApp({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<RekindleApp> createState() => _RekindleAppState();
+}
+
+class _RekindleAppState extends ConsumerState<RekindleApp> with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _reconcile();
+    });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _reconcile();
+    }
+  }
+
+  void _reconcile() {
+    ref.read(reminderReconciliationServiceProvider).reconcile().catchError((_) {});
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final router = ref.watch(routerProvider);
 
     return MaterialApp.router(

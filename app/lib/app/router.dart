@@ -4,6 +4,8 @@ import '../features/explore/explore_screen.dart';
 import '../features/insights/insights_screen.dart';
 import '../features/interests/interests_screen.dart';
 import '../features/onboarding/onboarding_screen.dart';
+import '../features/reminders/reminder_form_screen.dart';
+import '../features/reminders/reminders_list_screen.dart';
 import '../features/settings/settings_screen.dart';
 import '../features/surface/surface_screen.dart';
 import 'providers.dart';
@@ -64,6 +66,21 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/settings',
         builder: (context, state) => const SettingsScreen(),
+      ),
+      GoRoute(
+        path: '/reminders',
+        builder: (context, state) => const RemindersListScreen(),
+      ),
+      GoRoute(
+        path: '/reminders/new',
+        builder: (context, state) => const ReminderFormScreen(),
+      ),
+      GoRoute(
+        path: '/reminders/edit/:id',
+        builder: (context, state) {
+          final id = state.pathParameters['id'];
+          return ReminderFormScreen(reminderId: id);
+        },
       ),
     ],
   );

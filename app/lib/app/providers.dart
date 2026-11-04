@@ -7,6 +7,10 @@ import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
 import 'package:rekindle_core/rekindle_core.dart';
 import '../features/nudges/local_notification_gateway.dart';
+import '../features/reminders/reminder_scheduler.dart';
+import '../features/reminders/reminder_service.dart';
+import '../features/reminders/reminder_reconciliation_service.dart';
+import '../features/reminders/reminder_portability_service.dart';
 
 /// Database provider providing singleton AppDatabase instance.
 final databaseProvider = Provider<AppDatabase>((ref) {
@@ -82,4 +86,53 @@ final onboardingCompletedProvider = StreamProvider<bool>((ref) {
 final interestsStreamProvider = StreamProvider<List<InterestsTableData>>((ref) {
   final db = ref.watch(databaseProvider);
   return (db.select(db.interestsTable)..where((tbl) => tbl.archivedAt.isNull())).watch();
+});
+
+/// Reminder repository provider.
+final reminderRepositoryProvider = Provider<ReminderRepository>((ref) {
+  final db = ref.watch(databaseProvider);
+  return DriftReminderRepository(db);
+});
+
+/// Reminder scheduler provider.
+final reminderSchedulerProvider = Provider<LocalNotificationScheduler>((ref) {
+  return FlutterLocalNotificationScheduler();
+});
+
+/// Watch all reminders stream.
+final remindersStreamProvider = StreamProvider<List<Reminder>>((ref) {
+  final repository = ref.watch(reminderRepositoryProvider);
+  return repository.watchAllReminders();
+});
+
+/// Reminder service provider.
+final reminderServiceProvider = Provider<ReminderService>((ref) {
+  final repository = ref.watch(reminderRepositoryProvider);
+  final scheduler = ref.watch(reminderSchedulerProvider);
+  return ReminderService(
+    repository: repository,
+    scheduler: scheduler,
+  );
+});
+
+/// Reminder reconciliation service provider.
+final reminderReconciliationServiceProvider =
+    Provider<ReminderReconciliationService>((ref) {
+  final repository = ref.watch(reminderRepositoryProvider);
+  final scheduler = ref.watch(reminderSchedulerProvider);
+  return ReminderReconciliationService(
+    repository: repository,
+    scheduler: scheduler,
+  );
+});
+
+/// Reminder data portability service provider.
+final reminderPortabilityServiceProvider =
+    Provider<ReminderPortabilityService>((ref) {
+  final repository = ref.watch(reminderRepositoryProvider);
+  final scheduler = ref.watch(reminderSchedulerProvider);
+  return ReminderPortabilityService(
+    repository: repository,
+    scheduler: scheduler,
+  );
 });

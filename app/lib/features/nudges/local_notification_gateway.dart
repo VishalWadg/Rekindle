@@ -34,9 +34,20 @@ class LocalNotificationGateway implements NotificationGateway {
       playSound: false,
     );
 
-    await _plugin
-        .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
-        ?.createNotificationChannel(androidChannel);
+    // Create "rekindle_reminders" channel with HIGH importance for deliberate user reminders
+    const remindersChannel = AndroidNotificationChannel(
+      'rekindle_reminders',
+      'Reminders',
+      description: 'Scheduled reminders to revisit saved thoughts and topics.',
+      importance: Importance.high,
+      enableVibration: true,
+      playSound: true,
+    );
+
+    final androidImpl = _plugin
+        .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+    await androidImpl?.createNotificationChannel(androidChannel);
+    await androidImpl?.createNotificationChannel(remindersChannel);
 
     _initialized = true;
   }
