@@ -39,7 +39,14 @@ class DriftReminderRepository implements ReminderRepository {
           );
 
       if (initialOccurrence != null) {
-        await db.into(db.reminderOccurrencesTable).insertOnConflictUpdate(
+        await (db.delete(db.reminderOccurrencesTable)
+              ..where((tbl) =>
+                  tbl.reminderId.equals(initialOccurrence.reminderId) &
+                  tbl.scheduleVersion.equals(initialOccurrence.scheduleVersion) &
+                  tbl.scheduledAtUtc.equals(initialOccurrence.scheduledAtUtc)))
+            .go();
+
+        await db.into(db.reminderOccurrencesTable).insert(
               _occurrenceToCompanion(initialOccurrence),
             );
       }
@@ -114,9 +121,18 @@ class DriftReminderRepository implements ReminderRepository {
 
   @override
   Future<void> saveOccurrence(ReminderOccurrence occurrence) async {
-    await db.into(db.reminderOccurrencesTable).insertOnConflictUpdate(
-          _occurrenceToCompanion(occurrence),
-        );
+    await db.transaction(() async {
+      await (db.delete(db.reminderOccurrencesTable)
+            ..where((tbl) =>
+                tbl.reminderId.equals(occurrence.reminderId) &
+                tbl.scheduleVersion.equals(occurrence.scheduleVersion) &
+                tbl.scheduledAtUtc.equals(occurrence.scheduledAtUtc)))
+          .go();
+
+      await db.into(db.reminderOccurrencesTable).insert(
+            _occurrenceToCompanion(occurrence),
+          );
+    });
   }
 
   @override

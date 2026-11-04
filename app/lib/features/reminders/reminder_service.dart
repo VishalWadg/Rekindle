@@ -206,9 +206,10 @@ class ReminderService {
     final rule = await repository.getRecurrenceRule(reminderId);
     if (reminder == null || rule == null || reminder.status == ReminderStatus.active) return;
 
+    final newScheduleVersion = reminder.scheduleVersion + 1;
     final nowUtc = DateTime.now().toUtc();
     final nextOccurrenceUtc = recurrenceEngine.calculateNextOccurrence(
-      reminder: reminder,
+      reminder: reminder.copyWith(scheduleVersion: newScheduleVersion),
       rule: rule,
       afterUtc: nowUtc,
     );
@@ -227,7 +228,7 @@ class ReminderService {
       occurrence = ReminderOccurrence(
         id: _uuid.v4(),
         reminderId: reminderId,
-        scheduleVersion: reminder.scheduleVersion,
+        scheduleVersion: newScheduleVersion,
         scheduledAtUtc: nextOccurrenceUtc,
         scheduledLocalDateTime: localScheduled,
         status: OccurrenceStatus.scheduled,
@@ -248,6 +249,7 @@ class ReminderService {
 
     final updated = reminder.copyWith(
       status: ReminderStatus.active,
+      scheduleVersion: newScheduleVersion,
       nextOccurrenceAtUtc: nextOccurrenceUtc,
       clearNextOccurrence: nextOccurrenceUtc == null,
       updatedAtUtc: nowUtc,
