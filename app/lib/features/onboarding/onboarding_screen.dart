@@ -21,6 +21,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   // Draft state
   final Set<String> _selectedInterests = {};
   final Map<String, String> _memories = {};
+  final Map<String, TextEditingController> _memoryControllers = {};
   NotificationLevel _level = NotificationLevel.gentle;
   final Set<DeliveryWindow> _windows = {DeliveryWindow.morning, DeliveryWindow.evening};
   NotificationVoice _voice = NotificationVoice.calm;
@@ -36,6 +37,15 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   void initState() {
     super.initState();
     _loadCatalog();
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    for (final c in _memoryControllers.values) {
+      c.dispose();
+    }
+    super.dispose();
   }
 
   Future<void> _loadCatalog() async {
@@ -397,7 +407,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
           Text('Pick your interests', style: theme.textTheme.headlineSmall?.copyWith(fontFamily: 'Lora')),
           const SizedBox(height: 4),
           Text(
-            'Choose 1 to 12 topics you want to rediscover. (3 to 5 recommended)',
+            'Choose at least 3 topics (up to 12) you want to rediscover.',
             style: theme.textTheme.bodySmall,
           ),
           const SizedBox(height: 12),
@@ -479,14 +489,24 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
             padding: const EdgeInsets.symmetric(vertical: 8.0),
             child: Column(
               children: [
-                Text('You can change this any time.', style: theme.textTheme.bodySmall),
+                Text(
+                  _selectedInterests.length < 3
+                      ? 'Select at least 3 to continue (${_selectedInterests.length}/3)'
+                      : 'You can change this any time.',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: _selectedInterests.length < 3 ? theme.colorScheme.primary : null,
+                    fontWeight: _selectedInterests.length < 3 ? FontWeight.w600 : null,
+                  ),
+                ),
                 const SizedBox(height: 8),
                 SizedBox(
                   width: double.infinity,
                   height: 48,
                   child: ElevatedButton(
-                    onPressed: _selectedInterests.isNotEmpty ? _nextStep : null,
-                    child: Text('Continue (${_selectedInterests.length})'),
+                    onPressed: _selectedInterests.length >= 3 ? _nextStep : null,
+                    child: Text(_selectedInterests.length < 3
+                        ? 'Select at least 3 (${_selectedInterests.length}/3)'
+                        : 'Continue (${_selectedInterests.length})'),
                   ),
                 ),
               ],
@@ -506,6 +526,9 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       );
     }
 
+    final completedCount = list.where((item) => (_memories[item]?.trim().isNotEmpty ?? false)).length;
+    final hasAllMemories = completedCount == list.length;
+
     return Padding(
       padding: const EdgeInsets.all(20.0),
       child: Column(
@@ -514,7 +537,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
           Text('First memories', style: theme.textTheme.headlineSmall?.copyWith(fontFamily: 'Lora')),
           const SizedBox(height: 4),
           Text(
-            'Jot a thought for up to 3 interests to make them immediately eligible to surface. (Optional)',
+            'Write at least one thought or memory for each of your first 3 interests so Rekindle has notes to surface.',
             style: theme.textTheme.bodySmall,
           ),
           const SizedBox(height: 16),
@@ -524,23 +547,43 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
               separatorBuilder: (_, __) => const SizedBox(height: 16),
               itemBuilder: (ctx, idx) {
                 final interestName = list[idx];
+                final controller = _memoryControllers.putIfAbsent(
+                  interestName,
+                  () => TextEditingController(text: _memories[interestName] ?? ''),
+                );
                 final promptChips = [
                   'Something that surprised you',
                   'A question you never answered',
                   'Why you got into it',
                 ];
 
+                final hasInput = _memories[interestName]?.trim().isNotEmpty ?? false;
+
                 return Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
                     color: theme.colorScheme.surface,
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: theme.colorScheme.outlineVariant),
+                    border: Border.all(
+                      color: hasInput ? theme.colorScheme.primary : theme.colorScheme.outlineVariant,
+                      width: hasInput ? 1.5 : 1,
+                    ),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(interestName, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              interestName,
+                              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+                            ),
+                          ),
+                          if (hasInput)
+                            Icon(Icons.check_circle, size: 18, color: theme.colorScheme.primary),
+                        ],
+                      ),
                       const SizedBox(height: 6),
                       Wrap(
                         spacing: 6,
@@ -550,6 +593,10 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                             onPressed: () {
                               setState(() {
                                 _memories[interestName] = prompt;
+                                controller.text = prompt;
+                                controller.selection = TextSelection.fromPosition(
+                                  TextPosition(offset: prompt.length),
+                                );
                               });
                             },
                           );
@@ -557,6 +604,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                       ),
                       const SizedBox(height: 8),
                       TextField(
+                        controller: controller,
                         maxLength: 1000,
                         maxLines: 3,
                         decoration: const InputDecoration(
@@ -564,7 +612,9 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                           border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(8))),
                         ),
                         onChanged: (val) {
-                          _memories[interestName] = val;
+                          setState(() {
+                            _memories[interestName] = val;
+                          });
                         },
                       ),
                     ],
@@ -573,23 +623,19 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
               },
             ),
           ),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: _nextStep,
-                  child: const Text('Skip for now'),
-                ),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8.0),
+            child: SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: ElevatedButton(
+                onPressed: hasAllMemories ? _nextStep : null,
+                child: Text(hasAllMemories
+                    ? 'Continue'
+                    : 'Add a thought for all 3 ($completedCount/3 done)'),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: ElevatedButton(
-                  onPressed: _nextStep,
-                  child: const Text('Continue'),
-                ),
-              ),
-            ],
-          )
+            ),
+          ),
         ],
       ),
     );
@@ -665,6 +711,115 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     );
   }
 
+  Widget _buildFrequencyCard({
+    required ThemeData theme,
+    required NotificationLevel level,
+    required IconData icon,
+    required String title,
+    required String cadence,
+    required String description,
+    bool isRecommended = false,
+  }) {
+    final isSelected = _level == level;
+    final colorScheme = theme.colorScheme;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: InkWell(
+        onTap: () => setState(() => _level = level),
+        borderRadius: BorderRadius.circular(14),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            color: isSelected
+                ? colorScheme.primaryContainer.withValues(alpha: 0.35)
+                : colorScheme.surface,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: isSelected ? colorScheme.primary : colorScheme.outlineVariant.withValues(alpha: 0.6),
+              width: isSelected ? 2 : 1,
+            ),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(9),
+                decoration: BoxDecoration(
+                  color: isSelected
+                      ? colorScheme.primary.withValues(alpha: 0.15)
+                      : colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  icon,
+                  color: isSelected ? colorScheme.primary : colorScheme.onSurfaceVariant,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Text(
+                          title,
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w600,
+                            color: isSelected ? colorScheme.primary : null,
+                          ),
+                        ),
+                        if (isRecommended) ...[
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: colorScheme.primary.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Text(
+                              'Recommended',
+                              style: TextStyle(
+                                fontSize: 9.5,
+                                fontWeight: FontWeight.w700,
+                                color: colorScheme.primary,
+                              ),
+                            ),
+                          ),
+                        ],
+                        const Spacer(),
+                        Text(
+                          cadence,
+                          style: TextStyle(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w600,
+                            color: isSelected ? colorScheme.primary : colorScheme.outline,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      description,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                        fontSize: 12,
+                        height: 1.25,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   // --- Step 6: Preferences ---
   Widget _buildStep6Preferences(ThemeData theme) {
     return SingleChildScrollView(
@@ -675,16 +830,39 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
           Text('Nudge preferences', style: theme.textTheme.headlineSmall?.copyWith(fontFamily: 'Lora')),
           const SizedBox(height: 16),
           const Text('How often should Rekindle nudge you?', style: TextStyle(fontWeight: FontWeight.w600)),
-          const SizedBox(height: 8),
-          SegmentedButton<NotificationLevel>(
-            segments: const [
-              ButtonSegment(value: NotificationLevel.rare, label: Text('Rarely\n(~2/wk)')),
-              ButtonSegment(value: NotificationLevel.gentle, label: Text('Gentle\n(~1/day)')),
-              ButtonSegment(value: NotificationLevel.more, label: Text('More\n(≤3/day)')),
-              ButtonSegment(value: NotificationLevel.off, label: Text('None')),
-            ],
-            selected: {_level},
-            onSelectionChanged: (set) => setState(() => _level = set.first),
+          const SizedBox(height: 12),
+          _buildFrequencyCard(
+            theme: theme,
+            level: NotificationLevel.gentle,
+            icon: Icons.spa_outlined,
+            title: 'Gentle',
+            cadence: '~1/day',
+            description: 'A calm, steady rhythm. Surfaces one thoughtful rediscovery daily.',
+            isRecommended: true,
+          ),
+          _buildFrequencyCard(
+            theme: theme,
+            level: NotificationLevel.rare,
+            icon: Icons.nightlight_outlined,
+            title: 'Rarely',
+            cadence: '~2/week',
+            description: 'Minimal and spacious. Occasional prompts only when you have breathing room.',
+          ),
+          _buildFrequencyCard(
+            theme: theme,
+            level: NotificationLevel.more,
+            icon: Icons.explore_outlined,
+            title: 'More',
+            cadence: '≤3/day',
+            description: 'Active rediscovery. Up to 3 sparks spread across your waking hours.',
+          ),
+          _buildFrequencyCard(
+            theme: theme,
+            level: NotificationLevel.off,
+            icon: Icons.notifications_off_outlined,
+            title: 'None',
+            cadence: 'In-app only',
+            description: 'No background nudges. Explore your library purely on your own schedule.',
           ),
           const SizedBox(height: 20),
           const Text('Delivery windows', style: TextStyle(fontWeight: FontWeight.w600)),
