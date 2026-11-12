@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:go_router/go_router.dart';
 import 'package:rekindle_core/rekindle_core.dart';
+import 'package:timezone/timezone.dart' as tz;
 import '../../app/providers.dart';
 
 class ReminderFormScreen extends ConsumerStatefulWidget {
@@ -236,8 +237,16 @@ class _ReminderFormScreenState extends ConsumerState<ReminderFormScreen> {
                       labelText: 'Every',
                       border: OutlineInputBorder(),
                     ),
+                    validator: (val) {
+                      if (_scheduleType != ScheduleType.interval) return null;
+                      final n = int.tryParse(val?.trim() ?? '');
+                      if (n == null || n <= 0) {
+                        return 'Enter >= 1';
+                      }
+                      return null;
+                    },
                     onChanged: (val) {
-                      final n = int.tryParse(val);
+                      final n = int.tryParse(val.trim());
                       if (n != null && n > 0) {
                         setState(() => _intervalValue = n);
                       }
@@ -253,6 +262,10 @@ class _ReminderFormScreenState extends ConsumerState<ReminderFormScreen> {
                       border: OutlineInputBorder(),
                     ),
                     items: const [
+                      DropdownMenuItem(
+                        value: IntervalUnit.minutes,
+                        child: Text('Minutes'),
+                      ),
                       DropdownMenuItem(
                         value: IntervalUnit.hours,
                         child: Text('Hours'),
@@ -425,6 +438,13 @@ class _ReminderFormScreenState extends ConsumerState<ReminderFormScreen> {
       }
 
       final service = ref.read(reminderServiceProvider);
+      tz.Location location;
+      try {
+        location = tz.getLocation(timezoneId);
+      } catch (_) {
+        location = tz.UTC;
+      }
+      final nowInZone = tz.TZDateTime.from(DateTime.now().toUtc(), location);
 
       // Build recurrence rule
       RecurrenceRule rule;
@@ -442,11 +462,11 @@ class _ReminderFormScreenState extends ConsumerState<ReminderFormScreen> {
           rule = OnceRule(startLocal);
           break;
         case ScheduleType.interval:
-          startLocal = DateTime.now();
+          startLocal = nowInZone;
           rule = IntervalRule(value: _intervalValue, unit: _intervalUnit);
           break;
         case ScheduleType.weekly:
-          startLocal = DateTime.now();
+          startLocal = nowInZone;
           rule = WeeklyRule(
             weekdays: _weeklyDays,
             localTime: ReminderTime(
@@ -482,7 +502,7 @@ class _ReminderFormScreenState extends ConsumerState<ReminderFormScreen> {
       }
 
       if (mounted) {
-        context.pop();
+        if (context.canPop()) context.pop();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(

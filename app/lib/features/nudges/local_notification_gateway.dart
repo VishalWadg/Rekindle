@@ -1,6 +1,7 @@
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:rekindle_core/rekindle_core.dart';
 import 'package:timezone/timezone.dart' as tz;
+import '../reminders/reminder_notification_handler.dart';
 
 class LocalNotificationGateway implements NotificationGateway {
   LocalNotificationGateway._();
@@ -8,6 +9,12 @@ class LocalNotificationGateway implements NotificationGateway {
 
   final FlutterLocalNotificationsPlugin _plugin = FlutterLocalNotificationsPlugin();
   bool _initialized = false;
+  DidReceiveNotificationResponseCallback? _foregroundResponseHandler;
+
+  /// Registers a foreground notification action handler using the live service.
+  void setForegroundResponseHandler(DidReceiveNotificationResponseCallback handler) {
+    _foregroundResponseHandler = handler;
+  }
 
   Future<void> initialize({
     DidReceiveNotificationResponseCallback? onNotificationResponse,
@@ -20,8 +27,12 @@ class LocalNotificationGateway implements NotificationGateway {
 
     await _plugin.initialize(
       initSettings,
-      onDidReceiveNotificationResponse: onNotificationResponse,
-      onDidReceiveBackgroundNotificationResponse: onBackgroundNotificationResponse,
+      onDidReceiveNotificationResponse: (response) {
+        onNotificationResponse?.call(response);
+        _foregroundResponseHandler?.call(response);
+      },
+      onDidReceiveBackgroundNotificationResponse:
+          onBackgroundNotificationResponse ?? reminderBackgroundNotificationHandler,
     );
 
     // Create "nudges" channel with DEFAULT importance so notifications appear visibly in status bar and shade

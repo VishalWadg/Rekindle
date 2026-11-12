@@ -2,6 +2,7 @@ import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:rekindle_app/app/providers.dart';
 import 'package:rekindle_app/features/reminders/reminder_form_screen.dart';
 import 'package:rekindle_app/features/reminders/reminder_scheduler.dart';
@@ -139,6 +140,77 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Please enter a reminder title'), findsOneWidget);
+    });
+
+    testWidgets('ReminderFormScreen supports minute-wise interval (Every 2 minutes)', (tester) async {
+      final router = GoRouter(
+        initialLocation: '/',
+        routes: [
+          GoRoute(
+            path: '/',
+            builder: (context, __) => Scaffold(
+              body: Center(
+                child: ElevatedButton(
+                  onPressed: () => context.push('/form'),
+                  child: const Text('Open Form'),
+                ),
+              ),
+            ),
+          ),
+          GoRoute(
+            path: '/form',
+            builder: (_, __) => const ReminderFormScreen(),
+          ),
+        ],
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            databaseProvider.overrideWithValue(db),
+            reminderRepositoryProvider.overrideWithValue(repository),
+            reminderSchedulerProvider.overrideWithValue(scheduler),
+          ],
+          child: MaterialApp.router(routerConfig: router),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Open Form'));
+      await tester.pumpAndSettle();
+
+      // Enter reminder title
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'Title *'),
+        'Posture Check',
+      );
+
+      // Default interval value is 2; select Minutes from unit dropdown
+      await tester.tap(find.text('Hours'));
+      await tester.pumpAndSettle();
+      expect(find.text('Minutes'), findsOneWidget);
+      await tester.tap(find.text('Minutes').last);
+      await tester.pumpAndSettle();
+
+      // Scroll down and submit
+      await tester.drag(find.byType(ListView), const Offset(0, -600));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Create Reminder'));
+      await tester.pump();
+      await tester.runAsync(() async {
+        await Future.delayed(const Duration(milliseconds: 50));
+      });
+      await tester.pumpAndSettle();
+
+      final reminders = await repository.getAllReminders();
+      expect(reminders, hasLength(1));
+      expect(reminders.first.title, 'Posture Check');
+      expect(reminders.first.scheduleType, ScheduleType.interval);
+
+      final rule = await repository.getRecurrenceRule(reminders.first.id);
+      expect(rule, isA<IntervalRule>());
+      expect((rule as IntervalRule).value, 2);
+      expect(rule.unit, IntervalUnit.minutes);
     });
   });
 }

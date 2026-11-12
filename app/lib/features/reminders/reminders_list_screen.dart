@@ -279,7 +279,10 @@ class _ReminderCard extends ConsumerWidget {
       return 'Once on ${_formatDateTime(rule.localDateTime)}';
     }
     if (rule is IntervalRule) {
-      return 'Every ${rule.value} ${rule.unit.name}';
+      final unitName = rule.unit.name;
+      final unitLabel =
+          rule.value == 1 ? unitName.substring(0, unitName.length - 1) : unitName;
+      return 'Every ${rule.value} $unitLabel';
     }
     if (rule is WeeklyRule) {
       const dayNames = {

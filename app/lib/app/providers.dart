@@ -1,12 +1,10 @@
-import 'dart:io';
 import 'dart:math';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
 import 'package:drift/drift.dart';
-import 'package:drift/native.dart';
 import 'package:rekindle_core/rekindle_core.dart';
+import 'database_factory.dart';
 import '../features/nudges/local_notification_gateway.dart';
+import '../features/reminders/reminder_notification_handler.dart';
 import '../features/reminders/reminder_scheduler.dart';
 import '../features/reminders/reminder_service.dart';
 import '../features/reminders/reminder_reconciliation_service.dart';
@@ -14,21 +12,7 @@ import '../features/reminders/reminder_portability_service.dart';
 
 /// Database provider providing singleton AppDatabase instance.
 final databaseProvider = Provider<AppDatabase>((ref) {
-  final executor = LazyDatabase(() async {
-    final dbFolder = await getApplicationDocumentsDirectory();
-    final file = File(p.join(dbFolder.path, 'rekindle.sqlite'));
-    return NativeDatabase.createInBackground(
-      file,
-      setup: (rawDb) {
-        rawDb.execute('PRAGMA foreign_keys = ON;');
-        rawDb.execute('PRAGMA journal_mode = WAL;');
-        rawDb.execute('PRAGMA synchronous = NORMAL;');
-        rawDb.execute('PRAGMA busy_timeout = 5000;');
-      },
-    );
-  });
-
-  final db = AppDatabase(executor);
+  final db = openRekindleDatabase();
   ref.onDispose(() => db.close());
   return db;
 });
@@ -88,6 +72,17 @@ final interestsStreamProvider = StreamProvider<List<InterestsTableData>>((ref) {
   return (db.select(db.interestsTable)..where((tbl) => tbl.archivedAt.isNull())).watch();
 });
 
+/// Watch the live snippet count for a given interest.
+final snippetCountProvider = StreamProvider.family<int, String>((ref, interestId) {
+  final db = ref.watch(databaseProvider);
+  final query = db.selectOnly(db.snippetsTable)
+    ..addColumns([db.snippetsTable.id.count()])
+    ..where(db.snippetsTable.interestId.equals(interestId));
+  return query
+      .map((row) => row.read(db.snippetsTable.id.count()) ?? 0)
+      .watchSingle();
+});
+
 /// Reminder repository provider.
 final reminderRepositoryProvider = Provider<ReminderRepository>((ref) {
   final db = ref.watch(databaseProvider);
@@ -109,15 +104,20 @@ final remindersStreamProvider = StreamProvider<List<Reminder>>((ref) {
 final reminderServiceProvider = Provider<ReminderService>((ref) {
   final repository = ref.watch(reminderRepositoryProvider);
   final scheduler = ref.watch(reminderSchedulerProvider);
-  return ReminderService(
+  final service = ReminderService(
     repository: repository,
     scheduler: scheduler,
   );
+  LocalNotificationGateway.instance.setForegroundResponseHandler(
+    (response) => handleReminderNotificationResponse(response, service),
+  );
+  return service;
 });
 
 /// Reminder reconciliation service provider.
 final reminderReconciliationServiceProvider =
     Provider<ReminderReconciliationService>((ref) {
+  ref.watch(reminderServiceProvider);
   final repository = ref.watch(reminderRepositoryProvider);
   final scheduler = ref.watch(reminderSchedulerProvider);
   return ReminderReconciliationService(

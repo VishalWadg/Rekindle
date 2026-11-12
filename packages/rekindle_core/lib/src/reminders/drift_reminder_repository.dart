@@ -199,6 +199,16 @@ class DriftReminderRepository implements ReminderRepository {
 
   // --- Mappers ---
 
+  static DateTime _asLocalWallClock(DateTime dt) => DateTime(
+        dt.year,
+        dt.month,
+        dt.day,
+        dt.hour,
+        dt.minute,
+        dt.second,
+        dt.millisecond,
+      );
+
   Reminder _mapReminder(RemindersTableData data) {
     return Reminder(
       id: data.id,
@@ -224,7 +234,7 @@ class DriftReminderRepository implements ReminderRepository {
       description: Value(reminder.description),
       status: Value(reminder.status.name),
       scheduleType: Value(reminder.scheduleType.name),
-      startLocal: Value(reminder.startLocalDateTime),
+      startLocal: Value(_asLocalWallClock(reminder.startLocalDateTime)),
       timezoneId: Value(reminder.timeZoneId),
       nextOccurrenceUtc: Value(reminder.nextOccurrenceAtUtc?.toUtc()),
       scheduleVersion: Value(reminder.scheduleVersion),
@@ -257,7 +267,7 @@ class DriftReminderRepository implements ReminderRepository {
       reminderId: Value(occurrence.reminderId),
       scheduleVersion: Value(occurrence.scheduleVersion),
       scheduledAtUtc: Value(occurrence.scheduledAtUtc.toUtc()),
-      scheduledLocal: Value(occurrence.scheduledLocalDateTime),
+      scheduledLocal: Value(_asLocalWallClock(occurrence.scheduledLocalDateTime)),
       status: Value(occurrence.status.name),
       notificationId: Value(occurrence.notificationId),
       createdAt: Value(occurrence.createdAtUtc.toUtc()),

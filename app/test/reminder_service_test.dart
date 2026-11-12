@@ -1,5 +1,8 @@
+import 'dart:convert';
 import 'package:drift/native.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:rekindle_app/features/reminders/reminder_notification_handler.dart';
 import 'package:rekindle_app/features/reminders/reminder_reconciliation_service.dart';
 import 'package:rekindle_app/features/reminders/reminder_scheduler.dart';
 import 'package:rekindle_app/features/reminders/reminder_service.dart';
@@ -314,6 +317,54 @@ void main() {
 
       // Alarm should be restored into scheduler
       expect(scheduler.scheduled.containsKey(902), isTrue);
+    });
+
+    test('IntervalUnit.minutes schedules 2 minutes ahead and action advances next occurrence', () async {
+      final nowUtc = DateTime.now().toUtc();
+      final reminder = await service.createReminder(
+        title: 'Stretch & Hydrate',
+        scheduleType: ScheduleType.interval,
+        startLocalDateTime: nowUtc,
+        timeZoneId: 'UTC',
+        rule: const IntervalRule(value: 2, unit: IntervalUnit.minutes),
+      );
+
+      final firstOcc = await repository.getNextOccurrence(reminder.id);
+      expect(firstOcc, isNotNull);
+      expect(
+        firstOcc!.scheduledAtUtc.difference(reminder.createdAtUtc).inSeconds,
+        inInclusiveRange(115, 125),
+      );
+
+      final payload = jsonEncode({
+        'type': 'REMINDER',
+        'reminderId': reminder.id,
+        'occurrenceId': firstOcc.id,
+        'notificationId': firstOcc.notificationId,
+      });
+
+      await handleReminderNotificationResponse(
+        NotificationResponse(
+          notificationResponseType:
+              NotificationResponseType.selectedNotificationAction,
+          id: firstOcc.notificationId,
+          actionId: 'complete_reminder',
+          payload: payload,
+        ),
+        service,
+      );
+
+      final completedFirst = await repository.getOccurrence(firstOcc.id);
+      expect(completedFirst!.status, OccurrenceStatus.completed);
+
+      final secondOcc = await repository.getNextOccurrence(reminder.id);
+      expect(secondOcc, isNotNull);
+      expect(secondOcc!.id, isNot(firstOcc.id));
+      expect(
+        secondOcc.scheduledAtUtc.difference(firstOcc.scheduledAtUtc),
+        const Duration(minutes: 2),
+      );
+      expect(scheduler.scheduled.containsKey(secondOcc.notificationId), isTrue);
     });
   });
 }

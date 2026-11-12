@@ -40,41 +40,15 @@ class InterestsScreen extends ConsumerWidget {
             separatorBuilder: (_, __) => Divider(height: 1, color: theme.colorScheme.outlineVariant),
             itemBuilder: (ctx, idx) {
               final interest = interests[idx];
-              return FutureBuilder<int>(
-                future: _getSnippetCount(db, interest.id),
-                builder: (context, snapshot) {
-                  final count = snapshot.data ?? 0;
-                  return ListTile(
-                    title: Text(interest.name, style: const TextStyle(fontWeight: FontWeight.w500)),
-                    subtitle: Text(
-                      count == 0 ? 'add a snippet' : '$count thoughts',
-                      style: TextStyle(
-                        color: count == 0 ? theme.colorScheme.primary : theme.colorScheme.onSurfaceVariant,
-                        fontSize: 13,
-                      ),
-                    ),
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        IconButton(
-                          icon: const Icon(Icons.add_comment_outlined, size: 20),
-                          tooltip: 'Add snippet',
-                          onPressed: () => _showAddSnippetSheet(context, ref, interest.id, interest.name),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.archive_outlined, size: 20),
-                          tooltip: 'Archive',
-                          onPressed: () async {
-                            await (db.update(db.interestsTable)..where((tbl) => tbl.id.equals(interest.id))).write(
-                              InterestsTableCompanion(archivedAt: drift.Value(DateTime.now().toUtc())),
-                            );
-                          },
-                        ),
-                      ],
-                    ),
-                    onTap: () => context.push('/explore/${interest.id}'),
+              return _InterestTile(
+                interest: interest,
+                onAddSnippet: () => _showAddSnippetSheet(context, ref, interest.id, interest.name),
+                onArchive: () async {
+                  await (db.update(db.interestsTable)..where((tbl) => tbl.id.equals(interest.id))).write(
+                    InterestsTableCompanion(archivedAt: drift.Value(DateTime.now().toUtc())),
                   );
                 },
+                onTap: () => context.push('/explore/${interest.id}'),
               );
             },
           );
@@ -83,14 +57,6 @@ class InterestsScreen extends ConsumerWidget {
         error: (err, _) => Center(child: Text('Error: $err')),
       ),
     );
-  }
-
-  Future<int> _getSnippetCount(AppDatabase db, String interestId) async {
-    final query = db.selectOnly(db.snippetsTable)
-      ..addColumns([db.snippetsTable.id.count()])
-      ..where(db.snippetsTable.interestId.equals(interestId));
-    final count = await query.map((row) => row.read(db.snippetsTable.id.count())).getSingle();
-    return count ?? 0;
   }
 
   void _showAddInterestDialog(BuildContext context, WidgetRef ref) {
@@ -194,6 +160,53 @@ class InterestsScreen extends ConsumerWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _InterestTile extends ConsumerWidget {
+  const _InterestTile({
+    required this.interest,
+    required this.onAddSnippet,
+    required this.onArchive,
+    required this.onTap,
+  });
+
+  final InterestsTableData interest;
+  final VoidCallback onAddSnippet;
+  final VoidCallback onArchive;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final count = ref.watch(snippetCountProvider(interest.id)).valueOrNull ?? 0;
+
+    return ListTile(
+      title: Text(interest.name, style: const TextStyle(fontWeight: FontWeight.w500)),
+      subtitle: Text(
+        count == 0 ? 'add a snippet' : '$count thoughts',
+        style: TextStyle(
+          color: count == 0 ? theme.colorScheme.primary : theme.colorScheme.onSurfaceVariant,
+          fontSize: 13,
+        ),
+      ),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            icon: const Icon(Icons.add_comment_outlined, size: 20),
+            tooltip: 'Add snippet',
+            onPressed: onAddSnippet,
+          ),
+          IconButton(
+            icon: const Icon(Icons.archive_outlined, size: 20),
+            tooltip: 'Archive',
+            onPressed: onArchive,
+          ),
+        ],
+      ),
+      onTap: onTap,
     );
   }
 }

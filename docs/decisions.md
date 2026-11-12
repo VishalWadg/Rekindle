@@ -193,11 +193,13 @@ This document records the critical architectural and engineering decisions made 
 - **Decision**:
   1. **Reactive List View**: Bind `RemindersListScreen` directly to Drift's reactive `watchAllReminders()` stream via Riverpod (`remindersStreamProvider`).
   2. **Polymorphic Recurrence Form**: Build `ReminderFormScreen` with dynamic input controls tailored to the selected `ScheduleType`:
-     - *Interval*: duration numeric input + unit dropdown (hours, days, weeks).
+     - *Interval*: duration numeric input + unit dropdown (`minutes`, `hours`, `days`, `weeks`).
      - *Weekly*: day-of-week selection chips ($1 \dots 7$) + time picker.
      - *Once*: calendar date picker + clock time picker.
-  3. **Visual & Voice Alignment**: Apply Warm Paper cards, Lora headline typography, subtle status badges (Active, Paused, Completed), and eliminate all guilt/streak gamification indicators.
-  4. **Direct Navigation**: Expose `/reminders`, `/reminders/new`, and `/reminders/edit/:id` routes in `GoRouter`, linked from `SettingsScreen`.
+  3. **Notification Action Sync**: Wire `LocalNotificationGateway` foreground & background (`@pragma('vm:entry-point')`) response handlers to `ReminderService.completeOccurrence` / `skipOccurrence` so sub-hour interval reminders (e.g., every 2 minutes) advance cleanly from notification actions.
+  4. **Reactive Interest Counts**: Watch `snippetsTable` via Drift's `.watchSingle()` in `snippetCountProvider` so adding a snippet updates the parent interest row immediately without tab switches or restarts.
+  5. **Visual & Voice Alignment**: Apply Warm Paper cards, Lora headline typography, subtle status badges (Active, Paused, Completed), and eliminate all guilt/streak gamification indicators.
+  6. **Direct Navigation**: Expose `/reminders`, `/reminders/new`, and `/reminders/edit/:id` routes in `GoRouter`, linked from `SettingsScreen`.
 - **Consequences**:
   - *Pros*: Seamless user experience consistent with Rekindle's calm philosophy; immediate UI reactivity on state changes.
   - *Cons*: Requires viewport scrolling management for long forms in widget tests.

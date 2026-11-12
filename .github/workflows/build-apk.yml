@@ -90,19 +90,29 @@ jobs:
           TAG="${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'latest' }}"
           if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
             VERSION="${{ github.ref_name }}"
+            RAW_NOTES=$(git tag -l --format='%(contents)' "${TAG}" || true)
+            if [[ -z "${RAW_NOTES// }" ]]; then
+              RAW_NOTES=$(git log -1 --pretty=%B)
+            fi
           else
             PUB_VER=$(grep '^version:' app/pubspec.yaml | sed -E 's/version:[[:space:]]*//; s/\+.*//')
             VERSION="v${PUB_VER}"
+            RAW_NOTES=$(git log -1 --pretty=%B)
           fi
-          RAW_COMMIT="${{ github.event.head_commit.message }}"
-          SAFE_COMMIT=$(echo "$RAW_COMMIT" | head -n 1 | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g')
+
+          BODY_LINES=$(printf '%s\n' "$RAW_NOTES" | tail -n +2 | sed '/^[[:space:]]*$/d')
+          if [[ -z "${BODY_LINES// }" ]]; then
+            BODY_LINES=$(printf '%s\n' "$RAW_NOTES" | head -n 1)
+          fi
+
+          FEATURES=$(printf '%s\n' "$BODY_LINES" | sed -E 's/^[[:space:]]*[-*•][[:space:]]*//; s/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g; s/^/• /')
           RELEASE_URL="https://github.com/${{ github.repository }}/releases/tag/${TAG}"
           DOWNLOAD_URL="https://github.com/${{ github.repository }}/releases/download/${TAG}/app-release.apk"
 
           CAPTION="🚀 <b>New Rekindle : ${VERSION}</b>"$'\n\n'
           CAPTION+="A new Android build has been built and published!"$'\n\n'
-          CAPTION+="<b>Features:</b>"$'\n'
-          CAPTION+="• ${SAFE_COMMIT}"$'\n\n'
+          CAPTION+="<b>What's New:</b>"$'\n'
+          CAPTION+="${FEATURES}"$'\n\n'
           CAPTION+="📥 <a href=\"${DOWNLOAD_URL}\">Direct APK Download</a>"$'\n'
           CAPTION+="🌐 <a href=\"${RELEASE_URL}\">GitHub Release Notes</a>"
 
